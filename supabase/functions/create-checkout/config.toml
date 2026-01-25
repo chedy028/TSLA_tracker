@@ -1,0 +1,3 @@
+# Disable automatic JWT verification so CORS preflight (OPTIONS) requests pass through
+# The function still receives the Authorization header and can verify manually if needed
+verify_jwt = false
