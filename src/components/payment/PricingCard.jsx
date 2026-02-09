@@ -28,8 +28,11 @@ export function PricingCard({ plan, highlighted = false }) {
         <div className="pricing-price">
           <span className="price-currency">$</span>
           <span className="price-amount">{plan.price}</span>
-          {plan.price > 0 && <span className="price-period">/mo</span>}
+          {plan.price > 0 && <span className="price-period">/{plan.introLabel ? 'first mo' : 'mo'}</span>}
         </div>
+        {plan.regularPrice && (
+          <div className="pricing-regular-note">then ${plan.regularPrice}/mo after</div>
+        )}
       </div>
 
       <ul className="pricing-features">

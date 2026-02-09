@@ -147,7 +147,7 @@ const safeGetProfile = async (userId) => {
 ### 🟡 MEDIUM PRIORITY
 
 #### 1.9 Hardcoded Values Should Be Config
-- **Pricing**: `$9.99` hardcoded in 2 places (`src/lib/stripe.js:19`, `src/components/landing/PricingSection.jsx:27`)
+- **Pricing**: `$1.99` intro (first month), then `$9.99/mo` — configured in `src/lib/stripe.js` and `src/components/landing/PricingSection.jsx`
 - **Financial fallback data**: Q4 2024 TTM revenue/shares in `src/hooks/useCompanyFinancials.js:12-16`
 - **Gemini model name**: `gemini-2.0-flash` hardcoded in `src/lib/gemini.js:208`
 - **CORS proxy URL**: Hardcoded in 2 files
@@ -313,7 +313,7 @@ Claude: [Uses Vercel MCP to show deployed commit, env vars, build logs]
 
 **Use cases for your project**:
 - Debug subscription sync delays (check webhook delivery)
-- Verify $9.99 price ID is correct
+- Verify intro pricing ($1.99 first month, then $9.99/mo) price ID is correct
 - Investigate failed payments
 - Confirm webhook signature validation
 

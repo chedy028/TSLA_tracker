@@ -8,10 +8,9 @@ const FooterCTA = () => {
   return (
     <footer className="footer-cta">
       <div className="footer-cta-content">
-        <h2>Ready to Start Tracking?</h2>
+        <h2>Start Making Informed Decisions Today</h2>
         <p>
-          Join thousands of investors tracking Tesla stock smarter.
-          Get started for free today.
+          Free to start. No credit card required. See Tesla's real-time price and valuation in seconds.
         </p>
         <button
           className="cta-primary"

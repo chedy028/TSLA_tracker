@@ -89,7 +89,7 @@ Go to **Authentication > Providers** in Supabase dashboard and enable:
 1. Go to [Stripe Dashboard](https://dashboard.stripe.com)
 2. Go to **Products > Add product**
 3. Name: "TSLA Tracker Pro"
-4. Price: $9.99, Recurring monthly
+4. Price: $1.99/first month (intro), then $9.99/month recurring
 5. Copy the **Price ID** (starts with `price_`)
 
 ### Configure Webhook (after deploying functions)

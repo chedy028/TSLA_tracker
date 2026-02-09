@@ -4,26 +4,26 @@ import FeatureCard from './FeatureCard';
 const FeaturesSection = () => {
   const features = [
     {
-      title: 'Real-Time Price',
-      description: 'Get live TSLA stock price updates throughout the trading day. Stay informed with accurate, up-to-the-minute data.',
+      title: 'Live Price Updates',
+      description: 'See exactly what Tesla stock costs right now, updated every few minutes.',
       icon: '📈',
       tier: 'free'
     },
     {
-      title: 'Price Charts',
-      description: 'Visualize Tesla stock performance with interactive charts. Track 7-day price history and identify trends.',
+      title: 'Visual Price History',
+      description: "Easy-to-read charts show where Tesla's price has been and where it might be heading.",
       icon: '📊',
       tier: 'free'
     },
     {
-      title: 'AI Chat Assistant',
-      description: 'Ask questions about Tesla stock and get AI-powered insights. Understand market movements and make informed decisions.',
+      title: 'Your Personal Stock Guide',
+      description: 'Not sure what a P/S ratio means? Ask our AI in plain English.',
       icon: '🤖',
       tier: 'premium'
     },
     {
-      title: 'Price Alerts',
-      description: 'Set custom price targets and get notified instantly when TSLA hits your target. Never miss an opportunity.',
+      title: 'Never Miss a Price Target',
+      description: 'Set your buy or sell price, we email you when Tesla hits it.',
       icon: '🔔',
       tier: 'premium'
     }

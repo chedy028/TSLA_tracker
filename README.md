@@ -10,7 +10,7 @@ A full-featured Tesla stock price tracker with social authentication, AI assista
 - Current TSLA price display
 - Basic valuation tier indicator
 
-### Pro Tier ($9.99/month)
+### Pro Tier ($1.99/first month, then $9.99/month)
 - **Live Price Updates** - Real-time TSLA stock price with 15-minute auto-refresh
 - **Professional Charts** - TradingView-style 90-day candlestick charts
 - **Valuation Analysis** - P/S ratio calculation with color-coded status
@@ -63,7 +63,7 @@ npm install
 ### 3. Stripe Setup
 
 1. Create account at [stripe.com](https://stripe.com)
-2. Create a Product with a recurring price ($9.99/month)
+2. Create a Product with intro pricing ($1.99/first month, then $9.99/month)
 3. Get your publishable key from **Developers > API keys**
 4. Get the price ID from your product
 

@@ -17,14 +17,13 @@ const HeroSection = ({ livePrice, priceChange, priceChangePercent }) => {
   return (
     <section className="hero-section">
       <div className="hero-content">
-        <h1 className="hero-headline">
-          Track Tesla Stock Smarter
+        <h1 className="hero-headline landing-fade-in-up">
+          Make Confident Tesla Investment Decisions
         </h1>
-        <p className="hero-subtext">
-          Real-time TSLA price tracking with powerful analytics.
-          Start free and upgrade when you need AI-powered insights and custom alerts.
+        <p className="hero-subtext landing-fade-in-up landing-delay-1">
+          No jargon. No confusion. Just clear, real-time Tesla stock data with AI-powered insights to help you know when to buy, hold, or wait.
         </p>
-        <div className="hero-cta-group">
+        <div className="hero-cta-group landing-fade-in-up landing-delay-2">
           <button
             className="cta-primary"
             onClick={() => navigate('/login')}
@@ -42,10 +41,14 @@ const HeroSection = ({ livePrice, priceChange, priceChangePercent }) => {
             View Pricing
           </button>
         </div>
+        <p className="hero-trust-signal landing-fade-in-up landing-delay-2">Free forever. No credit card required.</p>
 
         {livePrice && (
-          <div className="hero-live-price">
-            <div className="live-price-label">TSLA Live Price</div>
+          <div className="hero-live-price landing-fade-in-up landing-delay-3">
+            <div className="live-price-label">
+              <span className="live-pulse-dot" />
+              TSLA Live Price
+            </div>
             <div>
               <span className="live-price-value">{formatPrice(livePrice)}</span>
               <span className={`live-price-change ${isPositive ? 'positive' : 'negative'}`}>

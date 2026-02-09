@@ -24,9 +24,10 @@ const PricingSection = () => {
     },
     {
       name: 'Premium',
-      price: '$9.99',
-      period: '/month',
-      description: 'For serious Tesla investors',
+      price: '$1.99',
+      period: '/first month',
+      regularPrice: '$9.99',
+      description: 'Try Pro for just $1.99',
       features: [
         { text: 'Everything in Free', included: true },
         { text: 'AI-powered chat assistant', included: true },
@@ -95,13 +96,19 @@ const PricingSection = () => {
               className={`pricing-card ${tier.highlighted ? 'pricing-card--highlighted' : ''}`}
             >
               {tier.highlighted && (
-                <span className="pricing-popular-badge">Most Popular</span>
+                <span className="pricing-popular-badge">INTRO OFFER</span>
               )}
               <h3 className="pricing-card-name">{tier.name}</h3>
               <div className="pricing-card-price">
                 <span className="pricing-amount">{tier.price}</span>
                 <span className="pricing-period">{tier.period}</span>
               </div>
+              {tier.regularPrice && (
+                <div className="pricing-then">then {tier.regularPrice}/mo after first month</div>
+              )}
+              {tier.description && (
+                <div className="pricing-description">{tier.description}</div>
+              )}
               <ul className="pricing-features">
                 {tier.features.map((feature, index) => (
                   <li

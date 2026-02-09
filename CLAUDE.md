@@ -24,7 +24,7 @@ Functions to deploy: `stripe-webhook`, `create-checkout`, `create-portal`, `send
 
 ## Architecture
 
-This is a React SaaS application for tracking TSLA stock with a freemium model (Free vs Pro at $9.99/month).
+This is a React SaaS application for tracking TSLA stock with a freemium model (Free vs Pro at $1.99/first month, then $9.99/month).
 
 ### Frontend (React + Vite)
 

@@ -16,7 +16,9 @@ export function getStripe() {
 export const PRICING = {
   pro: {
     name: 'Pro Plan',
-    price: 9.99,
+    price: 1.99,
+    regularPrice: 9.99,
+    introLabel: 'first month',
     priceId: import.meta.env.VITE_STRIPE_PRICE_ID, // Set this in your env
     features: [
       'Live TSLA price tracking',

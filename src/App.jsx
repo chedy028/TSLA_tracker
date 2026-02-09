@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { PriceChart } from './components/PriceChart'
 import { PriceHero } from './components/PriceHero'
 import { RulesLegend } from './components/RulesLegend'
+import LandingPage from './components/landing/LandingPage'
 import { LoginPage } from './components/auth/LoginPage'
 import { AuthCallback } from './components/auth/AuthCallback'
 import { PayWall } from './components/payment/PayWall'
@@ -284,18 +285,38 @@ function PricingPage() {
   )
 }
 
+function HomeRoute() {
+  const { user, loading } = useAuth()
+
+  if (loading) {
+    return (
+      <div className="app">
+        <div className="auth-loading-screen">
+          <div className="loading-spinner" />
+        </div>
+      </div>
+    )
+  }
+
+  if (user) {
+    return <Navigate to="/dashboard" replace />
+  }
+
+  return <LandingPage />
+}
+
 function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/" element={<HomeRoute />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/pricing" element={<PricingPage />} />
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>

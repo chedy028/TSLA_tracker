@@ -1417,6 +1417,13 @@ body {
   color: var(--text-muted);
 }
 
+.pricing-regular-note {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 0.25rem;
+  text-align: center;
+}
+
 .pricing-features {
   list-style: none;
   margin-bottom: 2rem;
