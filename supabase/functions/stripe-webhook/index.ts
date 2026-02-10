@@ -7,6 +7,8 @@ import Stripe from 'https://esm.sh/stripe@14.10.0'
 
 const stripeSecretKey = Deno.env.get('STRIPE_SECRET_KEY')
 const endpointSecret = Deno.env.get('STRIPE_WEBHOOK_SECRET')
+const supabaseUrl = Deno.env.get('SUPABASE_URL')
+const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
 // Validate required secrets are configured
 if (!stripeSecretKey) {
@@ -20,8 +22,53 @@ const stripe = new Stripe(stripeSecretKey || '', {
   apiVersion: '2023-10-16',
 })
 
+async function ensureProfileExists(
+  supabase: any,
+  userId: string,
+  email?: string | null
+) {
+  const { error } = await supabase
+    .from('profiles')
+    .upsert(
+      {
+        id: userId,
+        email: email ?? null,
+      },
+      { onConflict: 'id' }
+    )
+
+  if (error) {
+    throw new Error(`Failed to ensure profile for user ${userId}: ${error.message}`)
+  }
+
+  const { error: alertError } = await supabase
+    .from('alert_settings')
+    .upsert({ user_id: userId }, { onConflict: 'user_id' })
+
+  if (alertError) {
+    throw new Error(`Failed to ensure alert settings for user ${userId}: ${alertError.message}`)
+  }
+}
+
+function assertProfileUpdated(
+  rows: { id: string }[] | null,
+  context: string
+) {
+  if (!rows || rows.length === 0) {
+    throw new Error(`${context}: no matching profile row was updated`)
+  }
+}
+
 serve(async (req) => {
   // Validate secrets before processing
+  if (!stripeSecretKey) {
+    console.error('STRIPE_SECRET_KEY not configured')
+    return new Response(JSON.stringify({ error: 'Stripe secret key not configured' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
+
   if (!endpointSecret) {
     console.error('STRIPE_WEBHOOK_SECRET not configured - cannot verify webhook')
     return new Response(JSON.stringify({ error: 'Webhook secret not configured' }), {
@@ -53,10 +100,15 @@ serve(async (req) => {
     })
   }
 
-  const supabase = createClient(
-    Deno.env.get('SUPABASE_URL') || '',
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
-  )
+  if (!supabaseUrl || !serviceRoleKey) {
+    console.error('Supabase environment variables are not configured')
+    return new Response(JSON.stringify({ error: 'Supabase service role is not configured' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
+
+  const supabase = createClient(supabaseUrl, serviceRoleKey)
 
   try {
     switch (event.type) {
@@ -66,8 +118,17 @@ serve(async (req) => {
         const customerId = session.customer as string
         const subscriptionId = session.subscription as string
 
-        if (userId) {
-          await supabase
+        if (!userId) {
+          throw new Error('checkout.session.completed missing metadata.userId')
+        }
+
+        await ensureProfileExists(
+          supabase,
+          userId,
+          session.customer_details?.email ?? session.customer_email ?? null
+        )
+
+        const { data, error } = await supabase
             .from('profiles')
             .update({
               subscription_status: 'active',
@@ -75,9 +136,13 @@ serve(async (req) => {
               stripe_subscription_id: subscriptionId,
             })
             .eq('id', userId)
+            .select('id')
 
-          console.log(`Subscription activated for user ${userId}`)
+        if (error) {
+          throw new Error(`Failed to activate subscription for user ${userId}: ${error.message}`)
         }
+        assertProfileUpdated(data, `Activation write failed for user ${userId}`)
+        console.log(`Subscription activated for user ${userId}`)
         break
       }
 
@@ -89,7 +154,7 @@ serve(async (req) => {
                        subscription.status === 'past_due' ? 'past_due' :
                        subscription.cancel_at_period_end ? 'canceled' : 'active'
 
-        await supabase
+        const { data, error } = await supabase
           .from('profiles')
           .update({
             subscription_status: status,
@@ -98,6 +163,12 @@ serve(async (req) => {
               : null,
           })
           .eq('stripe_customer_id', customerId)
+          .select('id')
+
+        if (error) {
+          throw new Error(`Failed to update subscription for customer ${customerId}: ${error.message}`)
+        }
+        assertProfileUpdated(data, `Subscription update failed for customer ${customerId}`)
 
         console.log(`Subscription updated for customer ${customerId}: ${status}`)
         break
@@ -107,13 +178,19 @@ serve(async (req) => {
         const subscription = event.data.object as Stripe.Subscription
         const customerId = subscription.customer as string
 
-        await supabase
+        const { data, error } = await supabase
           .from('profiles')
           .update({
             subscription_status: 'canceled',
             subscription_end_date: new Date().toISOString(),
           })
           .eq('stripe_customer_id', customerId)
+          .select('id')
+
+        if (error) {
+          throw new Error(`Failed to cancel subscription for customer ${customerId}: ${error.message}`)
+        }
+        assertProfileUpdated(data, `Subscription cancellation failed for customer ${customerId}`)
 
         console.log(`Subscription canceled for customer ${customerId}`)
         break
@@ -123,10 +200,16 @@ serve(async (req) => {
         const invoice = event.data.object as Stripe.Invoice
         const customerId = invoice.customer as string
 
-        await supabase
+        const { data, error } = await supabase
           .from('profiles')
           .update({ subscription_status: 'past_due' })
           .eq('stripe_customer_id', customerId)
+          .select('id')
+
+        if (error) {
+          throw new Error(`Failed to mark payment as past due for customer ${customerId}: ${error.message}`)
+        }
+        assertProfileUpdated(data, `Payment failure update failed for customer ${customerId}`)
 
         console.log(`Payment failed for customer ${customerId}`)
         break
@@ -141,15 +224,14 @@ serve(async (req) => {
       headers: { 'Content-Type': 'application/json' },
     })
   } catch (error) {
-    console.error('Webhook handler error:', error)
-    return new Response(JSON.stringify({ error: 'Webhook handler failed' }), {
+    const message = error instanceof Error ? error.message : 'Webhook handler failed'
+    console.error('Webhook handler error:', message)
+    return new Response(JSON.stringify({ error: message }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
     })
   }
 })
-
-
 
 
 

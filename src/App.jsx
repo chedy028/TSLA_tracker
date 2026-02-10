@@ -1,8 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { PriceChart } from './components/PriceChart'
-import { PriceHero } from './components/PriceHero'
-import { RulesLegend } from './components/RulesLegend'
 import LandingPage from './components/landing/LandingPage'
 import { LoginPage } from './components/auth/LoginPage'
 import { AuthCallback } from './components/auth/AuthCallback'
@@ -11,11 +9,17 @@ import { PricingSection } from './components/payment/PricingCard'
 import { SubscriptionStatus } from './components/payment/SubscriptionStatus'
 import { InlineChatBox } from './components/chat/InlineChatBox'
 import { AlertSettings } from './components/alerts/AlertSettings'
+import ValuationGauge from './components/gauge/ValuationGauge'
+import DataCards from './components/dashboard/DataCards'
 import { useStockData } from './hooks/useStockData'
 import { useCompanyFinancials } from './hooks/useCompanyFinancials'
 import { AuthProvider, useAuth } from './hooks/useAuth'
 import { signOut } from './lib/supabase'
 import { calculateRevenueMultiple, getValuationTier } from './config/constants'
+import RefundPolicy from './components/legal/RefundPolicy'
+import ContactPage from './components/legal/ContactPage'
+import TermsPage from './components/legal/TermsPage'
+import PrivacyPage from './components/legal/PrivacyPage'
 
 function Dashboard() {
   const [showSettings, setShowSettings] = useState(false)
@@ -24,14 +28,14 @@ function Dashboard() {
   const { user, profile, isPro, loading: authLoading, refreshProfile } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
-  
-  const { 
-    quote, 
-    candles, 
-    loading, 
+
+  const {
+    quote,
+    candles,
+    loading,
     candlesLoading,
-    lastUpdated, 
-    error, 
+    lastUpdated,
+    error,
     refetch,
     selectedRange,
     changeRange,
@@ -39,45 +43,68 @@ function Dashboard() {
   } = useStockData()
   const { financials, loading: financialsLoading, refetch: refetchFinancials } = useCompanyFinancials()
 
-  // Check for success parameter from Stripe
+  // Check for success parameter from Stripe and keep polling bounded.
   useEffect(() => {
     const params = new URLSearchParams(location.search)
     const isSuccess = params.get('success') === 'true'
-    if (!isSuccess) {
+    if (!isSuccess || !user) {
+      setSubscriptionSyncing(false)
+      setSubscriptionSyncError(null)
+      return
+    }
+
+    if (isPro) {
       setSubscriptionSyncing(false)
       setSubscriptionSyncError(null)
       return
     }
 
     let attempts = 0
-    let active = true
+    let stopped = false
+    let intervalId = null
+    const maxAttempts = 10
 
     const pollSubscription = async () => {
+      if (stopped) return
       attempts += 1
+
       try {
-        await refreshProfile()
-      } catch (err) {
-        if (active) {
-          setSubscriptionSyncError(err.message || 'Unable to refresh subscription status.')
+        const latestProfile = await refreshProfile()
+        if (latestProfile?.subscription_status === 'active') {
+          setSubscriptionSyncing(false)
+          setSubscriptionSyncError(null)
+          stopped = true
+          if (intervalId) clearInterval(intervalId)
+          return
         }
+      } catch (err) {
+        if (!stopped) {
+          setSubscriptionSyncError(err.message || 'Unable to refresh subscription status.')
+          setSubscriptionSyncing(false)
+          stopped = true
+          if (intervalId) clearInterval(intervalId)
+        }
+        return
       }
 
-      if (attempts >= 10 && active && !isPro) {
+      if (attempts >= maxAttempts && !stopped) {
         setSubscriptionSyncError('Subscription update is taking longer than expected.')
         setSubscriptionSyncing(false)
+        stopped = true
+        if (intervalId) clearInterval(intervalId)
       }
     }
 
     setSubscriptionSyncing(true)
     setSubscriptionSyncError(null)
     pollSubscription()
-    const interval = setInterval(pollSubscription, 3000)
+    intervalId = setInterval(pollSubscription, 3000)
 
     return () => {
-      active = false
-      clearInterval(interval)
+      stopped = true
+      if (intervalId) clearInterval(intervalId)
     }
-  }, [location.search, refreshProfile])
+  }, [location.search, user, isPro, refreshProfile])
 
   useEffect(() => {
     const params = new URLSearchParams(location.search)
@@ -97,25 +124,25 @@ function Dashboard() {
     navigate('/')
   }
 
-  // Calculate current valuation for chat context
-  const revenueMultiple = quote && financials 
+  // Calculate current valuation
+  const revenueMultiple = quote && financials
     ? calculateRevenueMultiple(quote.current, financials)
     : 0
-  const valuationTier = revenueMultiple ? getValuationTier(revenueMultiple)?.label : null
+  const tier = revenueMultiple ? getValuationTier(revenueMultiple) : null
+  const valuationTier = tier?.label || null
 
   return (
     <div className="app">
       <div className="background-grid" />
-      
+
       <header className="header">
         <div className="logo">
-          <span className="logo-icon">T</span>
-          <span className="logo-text">TSLA Tracker</span>
+          <span className="logo-emoji">🎮</span>
+          <span className="logo-text">TSLA CHEAT CODE</span>
         </div>
         <div className="header-actions">
-          <span className="data-source-badge live">LIVE</span>
           {isPro && (
-            <span className="pro-badge">PRO</span>
+            <span className="pro-badge">Pro Active</span>
           )}
           {user ? (
             <div className="user-menu">
@@ -132,7 +159,7 @@ function Dashboard() {
                 <div className="user-dropdown">
                   <div className="user-info">
                     <span className="user-email">{user.email}</span>
-                    <span className="user-plan">{isPro ? 'Pro Plan' : 'Free Plan'}</span>
+                    <span className="user-plan">{isPro ? 'Cheat Code Pro' : 'Free Plan'}</span>
                   </div>
                   <hr />
                   <button onClick={() => { setShowSettings(false); navigate('/settings') }}>
@@ -170,35 +197,65 @@ function Dashboard() {
             Subscription active. Thanks for upgrading!
           </div>
         )}
-        {/* AI Chat Box at the top */}
-        <InlineChatBox
-          currentPrice={quote?.current}
-          valuationTier={valuationTier}
-          revenueMultiple={revenueMultiple}
-        />
 
-        <div className="content-stack">
-          <PriceHero 
-            quote={quote} 
-            lastUpdated={lastUpdated} 
-            loading={loading} 
+        {/* Gauge — shown for all users */}
+        <div className="gauge-section">
+          <ValuationGauge
+            multiple={revenueMultiple}
+            locked={!isPro}
+            tier={tier}
           />
         </div>
 
-        <PayWall feature="Pro Features">
-          <RulesLegend currentPrice={quote?.current} financials={financials} />
-          <PriceChart 
-            candles={candles} 
-            loading={loading}
-            candlesLoading={candlesLoading}
-            financials={financials}
-            currentPrice={quote?.current}
-            selectedRange={selectedRange}
-            onRangeChange={changeRange}
-            availableRanges={availableRanges}
-          />
-        </PayWall>
-        
+        {/* Pro: signal text + data cards + chat + chart */}
+        {isPro ? (
+          <>
+            {tier && (
+              <div className="signal-section">
+                <span className="signal-label">SIGNAL:</span>
+                <span className="signal-text" style={{ color: tier.signalColor }}>
+                  {tier.signal}
+                </span>
+              </div>
+            )}
+
+            <DataCards
+              quote={quote}
+              revenueMultiple={revenueMultiple}
+              financials={financials}
+            />
+
+            <InlineChatBox
+              currentPrice={quote?.current}
+              valuationTier={valuationTier}
+              revenueMultiple={revenueMultiple}
+            />
+
+            <PayWall feature="Pro Features">
+              <PriceChart
+                candles={candles}
+                loading={loading}
+                candlesLoading={candlesLoading}
+                financials={financials}
+                currentPrice={quote?.current}
+                selectedRange={selectedRange}
+                onRangeChange={changeRange}
+                availableRanges={availableRanges}
+              />
+            </PayWall>
+          </>
+        ) : (
+          /* Free authenticated: locked gauge + CTA */
+          <div className="free-cta-section">
+            <button
+              className="cta-unlock-dashboard"
+              onClick={() => navigate('/pricing')}
+            >
+              UNLOCK SIGNAL — $1.99
+            </button>
+            <p className="free-cta-subtext">Less than a coffee. Cancel anytime.</p>
+          </div>
+        )}
       </main>
 
       <footer className="footer">
@@ -235,11 +292,11 @@ function SettingsPage() {
   return (
     <div className="app">
       <div className="background-grid" />
-      
+
       <header className="header">
         <div className="logo" onClick={() => navigate('/dashboard')} style={{ cursor: 'pointer' }}>
-          <span className="logo-icon">T</span>
-          <span className="logo-text">TSLA Tracker</span>
+          <span className="logo-emoji">🎮</span>
+          <span className="logo-text">TSLA CHEAT CODE</span>
         </div>
         <button className="back-btn" onClick={() => navigate('/dashboard')}>
           ← Back to Dashboard
@@ -267,11 +324,11 @@ function PricingPage() {
   return (
     <div className="app">
       <div className="background-grid" />
-      
+
       <header className="header">
         <div className="logo" onClick={() => navigate('/dashboard')} style={{ cursor: 'pointer' }}>
-          <span className="logo-icon">T</span>
-          <span className="logo-text">TSLA Tracker</span>
+          <span className="logo-emoji">🎮</span>
+          <span className="logo-text">TSLA CHEAT CODE</span>
         </div>
         <button className="back-btn" onClick={() => navigate('/dashboard')}>
           ← Back to Dashboard
@@ -316,6 +373,10 @@ function App() {
           <Route path="/auth/callback" element={<AuthCallback />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/pricing" element={<PricingPage />} />
+          <Route path="/refund" element={<RefundPolicy />} />
+          <Route path="/contact" element={<ContactPage />} />
+          <Route path="/terms" element={<TermsPage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>

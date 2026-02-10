@@ -55,10 +55,7 @@ export function LoginPage() {
           </div>
         )}
 
-        <SocialButtons 
-          onError={setError}
-          onSuccess={() => navigate(from, { replace: true })}
-        />
+        <SocialButtons onError={setError} />
 
         <div className="auth-divider">
           <span>Secure authentication powered by Supabase</span>

@@ -94,6 +94,42 @@ export async function getProfile(userId) {
   }
 }
 
+export async function ensureProfileAndSettings(user) {
+  if (!supabase) return null
+  if (!user?.id) return null
+
+  const metadata = user.user_metadata || {}
+
+  // Preferred path: RPC helper (creates profile + default settings with server-side guarantees).
+  const { error: rpcError } = await supabase.rpc('ensure_user_profile')
+  if (rpcError) {
+    console.warn('ensure_user_profile RPC failed, falling back to client upsert:', rpcError.message)
+
+    // Fallback for environments where migration hasn't been applied yet.
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .upsert(
+        {
+          id: user.id,
+          email: user.email || null,
+          full_name: metadata.full_name || metadata.name || null,
+          avatar_url: metadata.avatar_url || null,
+        },
+        { onConflict: 'id' }
+      )
+
+    if (profileError) throw profileError
+
+    const { error: settingsError } = await supabase
+      .from('alert_settings')
+      .upsert({ user_id: user.id }, { onConflict: 'user_id' })
+
+    if (settingsError) throw settingsError
+  }
+
+  return getProfile(user.id)
+}
+
 export async function updateProfile(userId, updates) {
   if (!supabase) return null
   
@@ -141,6 +177,5 @@ export async function upsertAlertSettings(userId, settings) {
   if (error) throw error
   return data
 }
-
 
 

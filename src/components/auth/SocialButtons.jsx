@@ -18,7 +18,7 @@ const PROVIDERS = [
   },
 ]
 
-export function SocialButtons({ onSuccess, onError, disabled = false }) {
+export function SocialButtons({ onError, disabled = false }) {
   const [loading, setLoading] = useState(null)
 
   const handleSignIn = async (providerId) => {
@@ -31,8 +31,7 @@ export function SocialButtons({ onSuccess, onError, disabled = false }) {
     setLoading(providerId)
     try {
       await signInWithProvider(providerId)
-      // Note: success callback won't fire here because we redirect to OAuth provider
-      onSuccess?.()
+      // OAuth redirects away immediately; callback route owns post-login navigation.
     } catch (error) {
       console.error(`${providerId} sign in error:`, error)
       
@@ -78,6 +77,4 @@ export function SocialButtons({ onSuccess, onError, disabled = false }) {
     </div>
   )
 }
-
-
 

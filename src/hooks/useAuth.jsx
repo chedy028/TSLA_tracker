@@ -1,5 +1,5 @@
-import { useState, useEffect, createContext, useContext } from 'react'
-import { supabase, getProfile } from '../lib/supabase'
+import { useState, useEffect, useCallback, createContext, useContext } from 'react'
+import { supabase, getProfile, ensureProfileAndSettings } from '../lib/supabase'
 
 const AuthContext = createContext(null)
 
@@ -27,6 +27,24 @@ export function AuthProvider({ children }) {
       }
     }
 
+    // Repair missing profile rows so paid users are not treated as free forever.
+    const getProfileWithSelfHeal = async (authUser) => {
+      const existingProfile = await safeGetProfile(authUser.id)
+      if (existingProfile) return existingProfile
+
+      try {
+        const repairedProfile = await ensureProfileAndSettings(authUser)
+        if (repairedProfile) {
+          console.log('Recovered missing profile for:', authUser.email)
+          return repairedProfile
+        }
+      } catch (err) {
+        console.warn('Profile self-heal failed:', err)
+      }
+
+      return null
+    }
+
     // Get initial session
     const initAuth = async () => {
       try {
@@ -41,7 +59,7 @@ export function AuthProvider({ children }) {
         if (session?.user) {
           console.log('User found:', session.user.email)
           setUser(session.user)
-          const profileData = await safeGetProfile(session.user.id)
+          const profileData = await getProfileWithSelfHeal(session.user)
           setProfile(profileData)
         } else {
           console.log('No session found')
@@ -63,8 +81,7 @@ export function AuthProvider({ children }) {
         
         if (session?.user) {
           setUser(session.user)
-          // Don't block on profile fetch - it might not exist for new users
-          safeGetProfile(session.user.id).then(profileData => {
+          getProfileWithSelfHeal(session.user).then(profileData => {
             setProfile(profileData)
           })
         } else {
@@ -80,12 +97,17 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
-  const refreshProfile = async () => {
+  const refreshProfile = useCallback(async () => {
     if (user) {
-      const profileData = await getProfile(user.id)
+      let profileData = await getProfile(user.id)
+      if (!profileData) {
+        profileData = await ensureProfileAndSettings(user)
+      }
       setProfile(profileData)
+      return profileData
     }
-  }
+    return null
+  }, [user])
 
   const value = {
     user,
