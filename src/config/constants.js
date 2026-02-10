@@ -4,6 +4,8 @@ export const VALUATION_TIERS = [
     id: 'bargain',
     label: 'BARGAIN BASEMENT',
     description: 'Strong buy signal',
+    signal: 'STRONG BUY',
+    signalColor: '#00ff88',
     minMultiple: 0,
     maxMultiple: 5,
     color: '#00ff88',
@@ -13,6 +15,8 @@ export const VALUATION_TIERS = [
     id: 'cheap',
     label: 'CHEAP',
     description: 'Consider accumulating',
+    signal: 'BUY',
+    signalColor: '#00d4aa',
     minMultiple: 5,
     maxMultiple: 7,
     color: '#00d4aa',
@@ -22,7 +26,9 @@ export const VALUATION_TIERS = [
     id: 'fair',
     label: 'FAIR PRICED',
     description: 'Hold position',
-    minMultiple: 8,
+    signal: 'HOLD',
+    signalColor: '#ffd000',
+    minMultiple: 7,
     maxMultiple: 12,
     color: '#ffd000',
     bgColor: 'rgba(255, 208, 0, 0.15)',
@@ -31,7 +37,9 @@ export const VALUATION_TIERS = [
     id: 'expensive',
     label: 'EXPENSIVE',
     description: 'Caution advised',
-    minMultiple: 13,
+    signal: 'WAIT',
+    signalColor: '#ff8c00',
+    minMultiple: 12,
     maxMultiple: 20,
     color: '#ff8c00',
     bgColor: 'rgba(255, 140, 0, 0.15)',
@@ -40,12 +48,42 @@ export const VALUATION_TIERS = [
     id: 'overpriced',
     label: 'OVERPRICED',
     description: 'Consider taking profits',
+    signal: 'SELL',
+    signalColor: '#ff4757',
     minMultiple: 20,
     maxMultiple: Infinity,
     color: '#ff4757',
     bgColor: 'rgba(255, 71, 87, 0.15)',
   },
 ]
+
+// Gauge configuration for SVG rendering
+export const GAUGE_CONFIG = {
+  minMultiple: 0,
+  maxMultiple: 30,
+  startAngle: -90,  // left side of semicircle (degrees)
+  endAngle: 90,     // right side of semicircle (degrees)
+}
+
+// Calculate % above/below fair value midpoint (10x P/S)
+export function calculateFairValueGap(currentMultiple) {
+  const fairValueMidpoint = 10
+  return ((currentMultiple - fairValueMidpoint) / fairValueMidpoint) * 100
+}
+
+// Calculate price at next lower tier boundary
+export function getNextBuyZone(currentMultiple, financials) {
+  if (!financials || !financials.ttmRevenue || !financials.sharesOutstanding) {
+    return null
+  }
+  // Find the next lower tier boundary
+  const boundaries = [20, 12, 7, 5]
+  const target = boundaries.find(b => b < currentMultiple)
+  if (!target) return null
+  const price = (target * financials.ttmRevenue) / financials.sharesOutstanding
+  const tier = getValuationTier(target)
+  return { price, multiple: target, tierLabel: tier?.label }
+}
 
 // Get valuation tier based on revenue multiple
 export function getValuationTier(multiple) {

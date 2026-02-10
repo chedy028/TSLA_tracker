@@ -6,7 +6,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') || ''
-const FROM_EMAIL = 'TSLA Tracker <digest@yourdomain.com>'
+const FROM_EMAIL = 'TSLA Cheat Code <digest@tsla-cheatcode.com>'
 
 async function fetchTSLAData() {
   try {
@@ -95,7 +95,7 @@ function digestEmailTemplate(price: number, change: number, changePercent: numbe
     <body>
       <div class="container">
         <div class="header">
-          <div class="logo">T TSLA Tracker</div>
+          <div class="logo">🎮 TSLA Cheat Code</div>
           <div class="date">${date}</div>
         </div>
         
@@ -125,7 +125,7 @@ function digestEmailTemplate(price: number, change: number, changePercent: numbe
         </div>
 
         <div class="cta">
-          <a href="https://your-app-url.vercel.app" class="cta-btn">View Full Analysis</a>
+          <a href="https://tsla-tracker.vercel.app" class="cta-btn">View Full Analysis</a>
         </div>
 
         <div class="footer">

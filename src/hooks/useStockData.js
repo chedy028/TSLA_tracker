@@ -20,7 +20,7 @@ function formatTime(unixTimestamp, isIntraday = false) {
 }
 
 // Yahoo Finance API via CORS proxy (no API key needed)
-const CORS_PROXY = 'https://corsproxy.io/?'
+const CORS_PROXY = 'https://api.allorigins.win/raw?url='
 
 function buildYahooUrl(range, interval) {
   return `${CORS_PROXY}${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${SYMBOL}?interval=${interval}&range=${range}`)}`

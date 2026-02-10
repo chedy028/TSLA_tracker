@@ -15,18 +15,18 @@ export function getStripe() {
 // Pricing configuration
 export const PRICING = {
   pro: {
-    name: 'Pro Plan',
+    name: 'Cheat Code Pro',
     price: 1.99,
     regularPrice: 9.99,
     introLabel: 'first month',
     priceId: import.meta.env.VITE_STRIPE_PRICE_ID, // Set this in your env
     features: [
-      'Live TSLA price tracking',
+      'Real-time valuation signal',
+      'Buy/Sell/Hold gauge',
+      'Fair value gap analysis',
+      'AI stock assistant',
+      'Signal change email alerts',
       'Full candlestick chart',
-      'Valuation analysis',
-      'AI assistant',
-      'Price alerts via email',
-      'Daily digest emails',
     ],
   },
   free: {

@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 const SYMBOL = 'TSLA'
 
 // CORS proxy for Yahoo Finance
-const CORS_PROXY = 'https://corsproxy.io/?'
+const CORS_PROXY = 'https://api.allorigins.win/raw?url='
 
 // Yahoo Finance for shares outstanding and financial data
 const YAHOO_QUOTE_URL = `${CORS_PROXY}${encodeURIComponent(`https://query1.finance.yahoo.com/v10/finance/quoteSummary/${SYMBOL}?modules=defaultKeyStatistics,financialData`)}`

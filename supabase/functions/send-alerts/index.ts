@@ -6,7 +6,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') || ''
-const FROM_EMAIL = 'TSLA Tracker <alerts@yourdomain.com>'
+const FROM_EMAIL = 'TSLA Cheat Code <alerts@tsla-cheatcode.com>'
 
 // Large movement threshold (10%)
 const LARGE_MOVEMENT_THRESHOLD = 10
@@ -88,7 +88,7 @@ function priceAlertEmail(price: number, threshold: number, direction: 'above' | 
     <body>
       <div class="container">
         <div class="header">
-          <div class="logo">T TSLA Tracker</div>
+          <div class="logo">🎮 TSLA Cheat Code</div>
         </div>
         <h2>Price Alert Triggered!</h2>
         <p>TSLA has crossed your ${direction === 'above' ? 'upper' : 'lower'} price threshold.</p>
@@ -98,7 +98,7 @@ function priceAlertEmail(price: number, threshold: number, direction: 'above' | 
         </div>
         <p>This alert was triggered because TSLA is now trading ${direction} your set threshold.</p>
         <div class="footer">
-          <p>You're receiving this because you enabled price alerts on TSLA Tracker.</p>
+          <p>You're receiving this because you enabled price alerts on TSLA Cheat Code.</p>
         </div>
       </div>
     </body>
@@ -126,7 +126,7 @@ function valuationAlertEmail(price: number, oldTier: string, newTier: string, mu
     <body>
       <div class="container">
         <div class="header">
-          <div class="logo">T TSLA Tracker</div>
+          <div class="logo">🎮 TSLA Cheat Code</div>
         </div>
         <h2>Valuation Tier Changed!</h2>
         <p>TSLA's valuation tier has changed based on the Price-to-Sales ratio.</p>
@@ -138,7 +138,7 @@ function valuationAlertEmail(price: number, oldTier: string, newTier: string, mu
         </div>
         <p>Current price: $${price.toFixed(2)}</p>
         <div class="footer">
-          <p>You're receiving this because you enabled valuation alerts on TSLA Tracker.</p>
+          <p>You're receiving this because you enabled valuation alerts on TSLA Cheat Code.</p>
         </div>
       </div>
     </body>
@@ -170,7 +170,7 @@ function dailyDigestEmail(price: number, change: number, changePercent: number, 
     <body>
       <div class="container">
         <div class="header">
-          <div class="logo">T TSLA Tracker</div>
+          <div class="logo">🎮 TSLA Cheat Code</div>
           <p style="color: #8b8b9a;">Daily Digest - ${new Date().toLocaleDateString()}</p>
         </div>
         <div class="summary-box">
@@ -188,10 +188,10 @@ function dailyDigestEmail(price: number, change: number, changePercent: number, 
           </div>
         </div>
         <p style="text-align: center; color: #8b8b9a;">
-          <a href="https://your-app-url.vercel.app" style="color: #00d4aa;">View full analysis →</a>
+          <a href="https://tsla-tracker.vercel.app" style="color: #00d4aa;">View full analysis →</a>
         </p>
         <div class="footer">
-          <p>You're receiving this because you enabled daily digest on TSLA Tracker.</p>
+          <p>You're receiving this because you enabled daily digest on TSLA Cheat Code.</p>
         </div>
       </div>
     </body>
@@ -225,7 +225,7 @@ function largeMovementAlertEmail(price: number, previousClose: number, changePer
     <body>
       <div class="container">
         <div class="header">
-          <div class="logo">T TSLA Tracker</div>
+          <div class="logo">🎮 TSLA Cheat Code</div>
         </div>
         <h2>${emoji} Large Price Movement Alert!</h2>
         <p>TSLA has moved significantly today - more than 10% in a single day.</p>
@@ -243,10 +243,10 @@ function largeMovementAlertEmail(price: number, previousClose: number, changePer
         </div>
         <p style="text-align: center;">This is a significant market event. Consider reviewing your investment strategy.</p>
         <p style="text-align: center; color: #8b8b9a;">
-          <a href="https://your-app-url.vercel.app" style="color: #00d4aa;">View live analysis →</a>
+          <a href="https://tsla-tracker.vercel.app" style="color: #00d4aa;">View live analysis →</a>
         </p>
         <div class="footer">
-          <p>You're receiving this because you enabled large movement alerts on TSLA Tracker.</p>
+          <p>You're receiving this because you enabled large movement alerts on TSLA Cheat Code.</p>
         </div>
       </div>
     </body>

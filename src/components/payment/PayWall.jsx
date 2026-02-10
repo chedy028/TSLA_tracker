@@ -19,27 +19,24 @@ export function PayWall({ children, feature }) {
   }
 
   // Show locked state for non-Pro users
-  const displayText = feature === 'Pro Features' 
-    ? 'Valuation Analysis & Price Charts' 
-    : feature
-
   return (
     <div className="paywall-locked">
       <div className="paywall-overlay">
-        <div className="lock-icon">🔒</div>
+        <div className="lock-icon">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#00ff88" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+          </svg>
+        </div>
         <h3>Pro Feature</h3>
-        <p>Unlock {displayText} with Pro</p>
-        <button 
+        <p>Unlock this with Cheat Code Pro</p>
+        <button
           className="unlock-btn"
           onClick={() => navigate(isAuthenticated ? '/pricing' : '/login')}
         >
-          {isAuthenticated ? 'Upgrade to Pro' : 'Sign In to Unlock'}
+          {isAuthenticated ? 'UNLOCK — $1.99' : 'Sign In to Unlock'}
         </button>
       </div>
     </div>
   )
 }
-
-
-
-
