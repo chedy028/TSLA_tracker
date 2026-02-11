@@ -5,6 +5,90 @@ const apiKey = import.meta.env.VITE_GEMINI_API_KEY
 let genAI = null
 let chatSession = null
 let currentContext = null
+let currentLanguage = 'en'
+
+const LANG_CONFIG = {
+  en: {
+    nativeName: 'English',
+    forceReplyInstruction: 'Respond only in English.',
+    disclaimer: '⚠️ *This is not financial advice. Always do your own research and invest based on your personal situation.*',
+    market: {
+      weekend: '📅 Weekend — markets closed',
+      open: '🟢 Market is OPEN',
+      pre: '🌅 Pre-market trading',
+      after: '🌙 After-hours trading',
+      closed: '😴 Markets closed',
+    },
+    greeting: {
+      morning: ['Good morning!', 'Morning!', 'Hey there, early bird!', 'Rise and shine!'],
+      afternoon: ['Good afternoon!', 'Hey there!', 'Hope your day is going well!', 'Afternoon!'],
+      evening: ['Good evening!', 'Evening!', 'Hey there!', 'Welcome back!'],
+      night: ['Burning the midnight oil?', 'Hey there, night owl!', 'Late-night Tesla watching?', 'Hello!'],
+    },
+  },
+  es: {
+    nativeName: 'Español',
+    forceReplyInstruction: 'Responde solo en español.',
+    disclaimer: '⚠️ *Esto no es asesoramiento financiero. Investiga por tu cuenta y decide según tu situación personal.*',
+    market: {
+      weekend: '📅 Fin de semana — mercado cerrado',
+      open: '🟢 Mercado ABIERTO',
+      pre: '🌅 Pre-mercado',
+      after: '🌙 After-hours',
+      closed: '😴 Mercado cerrado',
+    },
+    greeting: {
+      morning: ['¡Buenos días!', '¡Buen día!', '¡Hola, madrugador!'],
+      afternoon: ['¡Buenas tardes!', '¡Hola!', '¡Qué bueno verte!'],
+      evening: ['¡Buenas noches!', '¡Bienvenido de nuevo!', '¡Hola!'],
+      night: ['¿Desvelado con TSLA?', '¡Hola, noctámbulo!', '¡Seguimos atentos al mercado!'],
+    },
+  },
+  ko: {
+    nativeName: '한국어',
+    forceReplyInstruction: '반드시 한국어로만 답변하세요.',
+    disclaimer: '⚠️ *이는 투자 자문이 아닙니다. 반드시 직접 조사하고 본인 상황에 맞게 판단하세요.*',
+    market: {
+      weekend: '📅 주말 — 시장 휴장',
+      open: '🟢 정규장 OPEN',
+      pre: '🌅 프리마켓',
+      after: '🌙 애프터마켓',
+      closed: '😴 시장 휴장',
+    },
+    greeting: {
+      morning: ['좋은 아침입니다!', '안녕하세요!'],
+      afternoon: ['좋은 오후입니다!', '반갑습니다!'],
+      evening: ['좋은 저녁입니다!', '다시 오셨네요!'],
+      night: ['늦게까지 TSLA 보고 계시네요!', '안녕하세요, 야행성이시군요!'],
+    },
+  },
+  ja: {
+    nativeName: '日本語',
+    forceReplyInstruction: '必ず日本語のみで回答してください。',
+    disclaimer: '⚠️ *これは投資助言ではありません。必ずご自身で調査し、個人の状況に合わせて判断してください。*',
+    market: {
+      weekend: '📅 週末 — 市場は休場',
+      open: '🟢 市場はOPEN',
+      pre: '🌅 プレマーケット',
+      after: '🌙 アフターマーケット',
+      closed: '😴 市場は休場',
+    },
+    greeting: {
+      morning: ['おはようございます！', 'こんにちは！'],
+      afternoon: ['こんにちは！', 'ようこそ！'],
+      evening: ['こんばんは！', 'お帰りなさい！'],
+      night: ['夜遅くまでTSLAを見ていますね！', 'こんばんは！'],
+    },
+  },
+}
+
+function normalizeLang(lang) {
+  return LANG_CONFIG[lang] ? lang : 'en'
+}
+
+function getLangConfig(lang = currentLanguage) {
+  return LANG_CONFIG[normalizeLang(lang)]
+}
 
 if (apiKey) {
   console.log('Gemini API key loaded:', apiKey.substring(0, 10) + '...')
@@ -97,17 +181,15 @@ To avoid repetitive "AI slop" responses:
 - Instead of "P/E ratio is elevated": "Investors are paying a premium price because they expect big things from Tesla's future"
 - Instead of "Support at $X": "There's a price level around $X where buyers have stepped in before — think of it like a floor"
 
-Remember: You're not just providing data. You're helping real people make sense of their Tesla investment decisions. Be helpful, be current, be human.`
+Remember: You're not just providing data. You're helping real people make sense of their Tesla investment decisions. Be helpful, be current, be human.
+
+## LANGUAGE RULE:
+Always reply in the user-selected language provided in the session context.`
 
 // Get dynamic greeting based on time and randomness
-function getGreeting() {
+function getGreeting(lang = currentLanguage) {
   const hour = new Date().getHours()
-  const greetings = {
-    morning: ['Good morning!', 'Morning!', 'Hey there, early bird!', 'Rise and shine!'],
-    afternoon: ['Good afternoon!', 'Hey there!', 'Hope your day is going well!', 'Afternoon!'],
-    evening: ['Good evening!', 'Evening!', 'Hey there!', 'Welcome back!'],
-    night: ['Burning the midnight oil?', 'Hey there, night owl!', 'Late-night Tesla watching?', 'Hello!']
-  }
+  const greetings = getLangConfig(lang).greeting
   
   let timeSlot
   if (hour >= 5 && hour < 12) timeSlot = 'morning'
@@ -120,7 +202,8 @@ function getGreeting() {
 }
 
 // Get market status
-function getMarketStatus() {
+function getMarketStatus(lang = currentLanguage) {
+  const copy = getLangConfig(lang).market
   const now = new Date()
   const hour = now.getUTCHours()
   const minute = now.getUTCMinutes()
@@ -129,75 +212,164 @@ function getMarketStatus() {
   // Market hours: 9:30 AM - 4:00 PM ET (14:30 - 21:00 UTC)
   const marketTime = hour + minute / 60
   
-  if (day === 0 || day === 6) return '📅 Weekend — markets closed'
-  if (marketTime >= 14.5 && marketTime < 21) return '🟢 Market is OPEN'
-  if (marketTime >= 9 && marketTime < 14.5) return '🌅 Pre-market trading'
-  if (marketTime >= 21 && marketTime < 25) return '🌙 After-hours trading'
-  return '😴 Markets closed'
+  if (day === 0 || day === 6) return copy.weekend
+  if (marketTime >= 14.5 && marketTime < 21) return copy.open
+  if (marketTime >= 9 && marketTime < 14.5) return copy.pre
+  if (marketTime >= 21 && marketTime < 25) return copy.after
+  return copy.closed
+}
+
+function getTierEmoji(tier) {
+  return tier === 'OVERPRICED'
+    ? '🔴'
+    : tier === 'EXPENSIVE'
+      ? '🟠'
+      : tier === 'FAIR PRICED'
+        ? '🟡'
+        : tier === 'CHEAP'
+          ? '🟢'
+          : '💎'
 }
 
 // Get introduction message
-export function getIntroMessage(currentPrice, valuationTier, isPro) {
+export function getIntroMessage(currentPrice, valuationTier, isPro, lang = 'en') {
+  const normalizedLang = normalizeLang(lang)
+  const config = getLangConfig(normalizedLang)
   const price = currentPrice?.toFixed(2) || '---'
-  const greeting = getGreeting()
-  const marketStatus = getMarketStatus()
-  
-  if (isPro) {
-    const tier = valuationTier || 'Loading...'
-    const tierEmoji = tier === 'OVERPRICED' ? '🔴' : 
-                      tier === 'EXPENSIVE' ? '🟠' : 
-                      tier === 'FAIR PRICED' ? '🟡' : 
-                      tier === 'CHEAP' ? '🟢' : '💎'
-    
-    return `${greeting} 👋 **I'm TSLA Tracker AI — your dedicated Tesla stock companion.**
+  const greeting = getGreeting(normalizedLang)
+  const marketStatus = getMarketStatus(normalizedLang)
+  const tier = valuationTier || 'N/A'
+  const tierEmoji = getTierEmoji(tier)
 
-I'm here specifically to help you navigate Tesla's stock. Whether you're new to investing or a seasoned trader, I'll break down what's happening with TSLA in plain English.
+  if (normalizedLang === 'es') {
+    if (isPro) {
+      return `${greeting} 👋 **Soy TSLA Tracker AI.**
+
+**📊 Estado en vivo:**
+• **Precio:** $${price}
+• **Valoración:** ${tierEmoji} **${tier}**
+• ${marketStatus}
+
+Puedo ayudarte con:
+• cuándo comprar o vender
+• vientos en contra/a favor
+• impacto de noticias recientes
+
+*Tienes **10 preguntas** disponibles hoy.*
+
+${config.disclaimer}`
+    }
+
+    return `${greeting} 👋 **Soy TSLA Tracker AI.**
+
+**📊 Precio actual:** $${price}
+${marketStatus}
+
+Como usuario gratuito, puedo ayudarte con preguntas generales sobre TSLA.
+Actualiza a Pro para señales de valoración y guía personalizada.
+
+*Tienes **3 preguntas** disponibles hoy.*
+
+${config.disclaimer}`
+  }
+
+  if (normalizedLang === 'ko') {
+    if (isPro) {
+      return `${greeting} 👋 **저는 TSLA Tracker AI입니다.**
+
+**📊 실시간 상태:**
+• **가격:** $${price}
+• **밸류에이션:** ${tierEmoji} **${tier}**
+• ${marketStatus}
+
+도움 가능한 내용:
+• 매수/매도 타이밍
+• 호재/악재 분석
+• 최근 뉴스 영향
+
+*오늘 **10회** 질문할 수 있습니다.*
+
+${config.disclaimer}`
+    }
+
+    return `${greeting} 👋 **저는 TSLA Tracker AI입니다.**
+
+**📊 현재 가격:** $${price}
+${marketStatus}
+
+무료 사용자에게는 TSLA 관련 기본 질문을 도와드립니다.
+밸류에이션 신호와 개인화 분석은 Pro에서 제공됩니다.
+
+*오늘 **3회** 질문할 수 있습니다.*
+
+${config.disclaimer}`
+  }
+
+  if (normalizedLang === 'ja') {
+    if (isPro) {
+      return `${greeting} 👋 **私はTSLA Tracker AIです。**
+
+**📊 ライブ状況:**
+• **価格:** $${price}
+• **評価:** ${tierEmoji} **${tier}**
+• ${marketStatus}
+
+サポート内容:
+• 売買タイミング
+• 追い風/向かい風の分析
+• 最新ニュースの影響
+
+*本日は**10回**質問できます。*
+
+${config.disclaimer}`
+    }
+
+    return `${greeting} 👋 **私はTSLA Tracker AIです。**
+
+**📊 現在価格:** $${price}
+${marketStatus}
+
+無料ユーザーにはTSLAの基本的な質問に対応します。
+評価シグナルと個別ガイダンスはProで利用できます。
+
+*本日は**3回**質問できます。*
+
+${config.disclaimer}`
+  }
+
+  if (isPro) {
+    return `${greeting} 👋 **I'm TSLA Tracker AI — your dedicated Tesla stock companion.**
 
 **📊 Live Status Right Now:**
 • **Price:** $${price}
 • **Valuation:** ${tierEmoji} **${tier}**
 • ${marketStatus}
 
-**What can I help you with?**
-🎯 Is NOW a good time to buy or sell?
-📈 What headwinds or tailwinds is Tesla facing?
-🔮 What does our valuation model suggest?
-📰 How is recent news affecting the stock?
-
-I track Tesla 24/7 so you don't have to. Ask me anything — I'm here to help you make sense of it all!
+I can help with buy/sell timing, headwinds/tailwinds, and how recent Tesla news affects risk.
 
 *You have **10 questions** available today.*
 
-⚠️ *This is not financial advice. Always do your own research and invest based on your personal situation.*`
+${config.disclaimer}`
   }
-  
-  // Free user - hide valuation tier
-  return `${greeting} 👋 **I'm TSLA Tracker AI — your dedicated Tesla stock companion.**
 
-I'm built specifically to track Tesla and help you understand what's happening with the stock — no complex jargon, just clear insights.
+  return `${greeting} 👋 **I'm TSLA Tracker AI — your dedicated Tesla stock companion.**
 
 **📊 Current Price:** $${price}
 ${marketStatus}
 
-**As a free user, you can ask me:**
-• General questions about Tesla
-• Basic market insights
-• What to look for when investing
+As a free user, you can ask general TSLA questions.
+Upgrade to Pro for valuation ratings and personalized guidance.
 
-**🔓 Upgrade to Pro for:**
-• Real-time valuation ratings (Cheap → Overpriced)
-• Headwind/tailwind analysis
-• Personalized buy/sell guidance
-• 10 questions per day
+*You have **3 questions** available today.*
 
-Try asking: *"What should beginners know about Tesla stock?"*
-
-⚠️ *This is not financial advice. Always do your own research and invest based on your personal situation.*`
+${config.disclaimer}`
 }
 
 // Initialize chat with current TSLA context
-export function initializeChat(currentPrice, valuationTier, revenueMultiple) {
-  currentContext = { currentPrice, valuationTier, revenueMultiple }
+export function initializeChat(currentPrice, valuationTier, revenueMultiple, lang = 'en') {
+  const normalizedLang = normalizeLang(lang)
+  currentLanguage = normalizedLang
+  currentContext = { currentPrice, valuationTier, revenueMultiple, lang: normalizedLang }
   
   if (!genAI) {
     console.warn('Gemini API key not configured - using demo mode')
@@ -209,15 +381,18 @@ export function initializeChat(currentPrice, valuationTier, revenueMultiple) {
     systemInstruction: SYSTEM_PROMPT,
   })
 
-  const marketStatus = getMarketStatus()
+  const languageConfig = getLangConfig(normalizedLang)
+  const marketStatus = getMarketStatus(normalizedLang)
   const timestamp = new Date().toISOString()
   
   const contextMessage = `## LIVE TSLA DATA (as of ${timestamp}):
 - **Current Price:** $${currentPrice?.toFixed(2) || 'N/A'}
 - **Valuation Tier:** ${valuationTier || 'N/A'}
 - **Market Status:** ${marketStatus}
+- **Output Language:** ${languageConfig.nativeName}
 
 ## INSTRUCTIONS FOR THIS SESSION:
+0. ${languageConfig.forceReplyInstruction}
 1. You are tracking TSLA LIVE right now. Reference this data in your responses.
 2. Be conversational and varied — don't give template responses.
 3. Consider recent Tesla news and developments when answering.
@@ -236,7 +411,7 @@ Remember: Users are counting on you for real-time, actionable insights about the
       },
       {
         role: 'model',
-        parts: [{ text: `Perfect — I'm locked in on Tesla. I have the live TSLA data and I'm ready to help users navigate their Tesla investment decisions. I'll keep my responses fresh, personalized, and focused on what matters most right now for TSLA holders. Let's help some investors! 🚗⚡` }],
+        parts: [{ text: `Acknowledged. I will focus on TSLA only and reply in ${languageConfig.nativeName}.` }],
       },
     ],
     generationConfig: {
@@ -279,12 +454,96 @@ function getMarketCommentary(tier) {
   return `**Mixed Signals:** ${randomPick(bullishFactors)}, but ${randomPick(bearishFactors).toLowerCase()}.`
 }
 
-// Generate demo response based on current context
-function generateDemoResponse(message, context, isPro) {
+function generateNonEnglishDemoResponse(message, context, isPro, lang) {
   const { currentPrice, valuationTier } = context || {}
   const price = currentPrice?.toFixed(2) || '475.19'
   const tier = valuationTier || 'EXPENSIVE'
-  const marketStatus = getMarketStatus()
+  const tierEmoji = getTierEmoji(tier)
+  const marketStatus = getMarketStatus(lang)
+  const disclaimer = getLangConfig(lang).disclaimer
+
+  if (lang === 'es') {
+    if (isPro) {
+      return `📊 **TSLA ahora:** $${price} | ${tierEmoji} **${tier}**
+${marketStatus}
+
+Resumen rápido:
+• Evaluación actual: ${tier}
+• Riesgo/recompensa depende de noticias y momentum
+• Conviene gestionar entrada/salida por tramos
+
+Si quieres, te doy un plan concreto de compra/venta según este nivel.
+
+${disclaimer}`
+    }
+
+    return `📊 **TSLA ahora:** $${price}
+${marketStatus}
+
+Como usuario gratuito puedo darte una guía general.
+Para señales de valoración en tiempo real y análisis personalizado, actualiza a Pro.
+
+${disclaimer}`
+  }
+
+  if (lang === 'ko') {
+    if (isPro) {
+      return `📊 **현재 TSLA:** $${price} | ${tierEmoji} **${tier}**
+${marketStatus}
+
+빠른 요약:
+• 현재 등급: ${tier}
+• 뉴스/모멘텀에 따라 변동성 확대 가능
+• 분할 진입/분할 대응이 유리
+
+원하면 현재 구간 기준으로 매수·매도 전략을 자세히 정리해드릴게요.
+
+${disclaimer}`
+    }
+
+    return `📊 **현재 TSLA:** $${price}
+${marketStatus}
+
+무료 플랜에서는 기본적인 시장 해설을 제공합니다.
+실시간 밸류에이션 신호와 개인화 분석은 Pro에서 이용할 수 있습니다.
+
+${disclaimer}`
+  }
+
+  if (isPro) {
+    return `📊 **現在のTSLA:** $${price} | ${tierEmoji} **${tier}**
+${marketStatus}
+
+クイック要約:
+• 現在の評価: ${tier}
+• ニュースとセンチメント次第で変動が大きくなりやすい
+• 分割でのエントリー/利益確定が有効
+
+必要なら、この評価帯に合わせた具体的な売買プランを作成します。
+
+${disclaimer}`
+  }
+
+  return `📊 **現在のTSLA:** $${price}
+${marketStatus}
+
+無料プランでは一般的な見通しを提供します。
+リアルタイム評価シグナルと個別分析はProで利用できます。
+
+${disclaimer}`
+}
+
+// Generate demo response based on current context
+function generateDemoResponse(message, context, isPro, lang = 'en') {
+  const normalizedLang = normalizeLang(lang)
+  if (normalizedLang !== 'en') {
+    return generateNonEnglishDemoResponse(message, context, isPro, normalizedLang)
+  }
+
+  const { currentPrice, valuationTier } = context || {}
+  const price = currentPrice?.toFixed(2) || '475.19'
+  const tier = valuationTier || 'EXPENSIVE'
+  const marketStatus = getMarketStatus(normalizedLang)
   const tierEmoji = tier === 'OVERPRICED' ? '🔴' : 
                     tier === 'EXPENSIVE' ? '🟠' : 
                     tier === 'FAIR PRICED' ? '🟡' : 
@@ -630,14 +889,68 @@ What's on your mind? Ask me about timing, headwinds, or anything Tesla!`
 ⚠️ *This is not financial advice. Always do your own research and invest based on your personal situation.*`
 }
 
+const QUICK_PROMPTS_BY_LANG = {
+  en: {
+    pro: [
+      { label: '🛒 Should I buy?', prompt: 'Based on the current valuation and market conditions, should I buy TSLA shares right now?' },
+      { label: '💰 Time to sell?', prompt: 'Given current valuation levels, is this a good time to take some profits on Tesla?' },
+      { label: '🌊 Headwinds/Tailwinds', prompt: 'What are the current headwinds and tailwinds affecting Tesla stock? What news should I watch?' },
+      { label: '📊 Full Analysis', prompt: 'Give me a complete breakdown of where TSLA stands right now — price, valuation, risks, and opportunities.' },
+    ],
+    free: [
+      { label: '🆕 Beginner Guide', prompt: "I'm new to investing. What should beginners know about Tesla stock?" },
+      { label: '📈 Current Status', prompt: "What's happening with Tesla stock right now?" },
+    ],
+  },
+  es: {
+    pro: [
+      { label: '🛒 ¿Compro ahora?', prompt: 'Con la valoración y el mercado actual, ¿debería comprar TSLA ahora mismo?' },
+      { label: '💰 ¿Momento de vender?', prompt: 'Con la valoración actual, ¿es buen momento para tomar ganancias en Tesla?' },
+      { label: '🌊 Vientos en contra/a favor', prompt: '¿Cuáles son los vientos en contra y a favor de Tesla ahora? ¿Qué noticias debo vigilar?' },
+      { label: '📊 Análisis completo', prompt: 'Dame un desglose completo de TSLA ahora: precio, valoración, riesgos y oportunidades.' },
+    ],
+    free: [
+      { label: '🆕 Guía principiante', prompt: 'Soy nuevo en inversión. ¿Qué debería saber sobre Tesla?' },
+      { label: '📈 Estado actual', prompt: '¿Qué está pasando con la acción de Tesla ahora?' },
+    ],
+  },
+  ko: {
+    pro: [
+      { label: '🛒 지금 매수?', prompt: '현재 밸류에이션과 시장 상황 기준으로 지금 TSLA를 사는 것이 좋을까요?' },
+      { label: '💰 매도 타이밍?', prompt: '현재 밸류에이션 기준으로 일부 차익 실현할 타이밍인가요?' },
+      { label: '🌊 호재/악재', prompt: '지금 Tesla에 영향을 주는 주요 호재와 악재는 무엇인가요? 어떤 뉴스를 봐야 하나요?' },
+      { label: '📊 전체 분석', prompt: 'TSLA 현재 상태를 가격, 밸류에이션, 리스크, 기회 기준으로 종합 분석해 주세요.' },
+    ],
+    free: [
+      { label: '🆕 입문 가이드', prompt: '투자 초보입니다. Tesla 주식에서 초보가 알아야 할 점은 무엇인가요?' },
+      { label: '📈 현재 상황', prompt: '지금 Tesla 주식 상황이 어떤가요?' },
+    ],
+  },
+  ja: {
+    pro: [
+      { label: '🛒 今買うべき？', prompt: '現在の評価と市場状況を踏まえて、今TSLAを買うべきですか？' },
+      { label: '💰 利確タイミング？', prompt: '現在の評価水準で、Teslaの利益確定を検討すべきタイミングですか？' },
+      { label: '🌊 追い風/向かい風', prompt: 'いまTeslaに影響する追い風と向かい風は何ですか？注目ニュースも教えてください。' },
+      { label: '📊 フル分析', prompt: 'TSLAの現状を価格・評価・リスク・機会の観点で総合的に分析してください。' },
+    ],
+    free: [
+      { label: '🆕 初心者ガイド', prompt: '投資初心者です。Tesla株で最初に知っておくべきことは？' },
+      { label: '📈 現在の状況', prompt: 'いまTesla株で何が起きていますか？' },
+    ],
+  },
+}
+
 // Send message and get response
-export async function sendMessage(message, isPro = true) {
+export async function sendMessage(message, isPro = true, lang = 'en') {
+  const normalizedLang = normalizeLang(lang)
+  currentLanguage = normalizedLang
+
   // Demo mode - return intelligent responses based on context
   if (!apiKey) {
     await new Promise(resolve => setTimeout(resolve, 1200)) // Simulate delay
     return {
       error: false,
-      message: generateDemoResponse(message, currentContext, isPro),
+      message: generateDemoResponse(message, currentContext, isPro, normalizedLang),
     }
   }
 
@@ -645,7 +958,8 @@ export async function sendMessage(message, isPro = true) {
     chatSession = initializeChat(
       currentContext?.currentPrice, 
       currentContext?.valuationTier, 
-      currentContext?.revenueMultiple
+      currentContext?.revenueMultiple,
+      normalizedLang
     )
   }
 
@@ -658,7 +972,8 @@ export async function sendMessage(message, isPro = true) {
 
   try {
     console.log('Sending message to Gemini:', message.substring(0, 50) + '...')
-    const result = await chatSession.sendMessage(message)
+    const languageInstruction = `[System language instruction: ${getLangConfig(normalizedLang).forceReplyInstruction}]`
+    const result = await chatSession.sendMessage(`${languageInstruction}\n${message}`)
     const response = await result.response
     console.log('Gemini response received successfully')
     return {
@@ -673,19 +988,55 @@ export async function sendMessage(message, isPro = true) {
     console.error('Full error:', JSON.stringify(error, null, 2))
     
     // Provide more helpful error messages
-    let errorMessage = 'Sorry, I encountered an error. Please try again.'
+    let errorMessage = {
+      en: 'Sorry, I encountered an error. Please try again.',
+      es: 'Lo siento, ocurrió un error. Inténtalo de nuevo.',
+      ko: '오류가 발생했습니다. 다시 시도해 주세요.',
+      ja: 'エラーが発生しました。もう一度お試しください。',
+    }[normalizedLang]
+
     if (error.message?.includes('API_KEY_INVALID') || error.message?.includes('invalid')) {
-      errorMessage = 'Invalid API key. Please check your Gemini API key configuration.'
+      errorMessage = {
+        en: 'Invalid API key. Please check your Gemini API key configuration.',
+        es: 'API key inválida. Revisa la configuración de Gemini.',
+        ko: 'API 키가 유효하지 않습니다. Gemini 설정을 확인해 주세요.',
+        ja: 'APIキーが無効です。Geminiの設定を確認してください。',
+      }[normalizedLang]
     } else if (error.message?.includes('PERMISSION_DENIED') || error.message?.includes('permission')) {
-      errorMessage = 'API key does not have permission. Enable the Generative Language API in Google Cloud Console.'
+      errorMessage = {
+        en: 'API key does not have permission. Enable the Generative Language API in Google Cloud Console.',
+        es: 'La API key no tiene permisos. Habilita Generative Language API en Google Cloud Console.',
+        ko: 'API 키 권한이 없습니다. Google Cloud Console에서 Generative Language API를 활성화하세요.',
+        ja: 'APIキーに権限がありません。Google Cloud ConsoleでGenerative Language APIを有効化してください。',
+      }[normalizedLang]
     } else if (error.message?.includes('QUOTA_EXCEEDED') || error.message?.includes('quota')) {
-      errorMessage = 'API quota exceeded. Please try again later.'
+      errorMessage = {
+        en: 'API quota exceeded. Please try again later.',
+        es: 'Se agotó la cuota de la API. Inténtalo más tarde.',
+        ko: 'API 할당량을 초과했습니다. 나중에 다시 시도해 주세요.',
+        ja: 'APIクォータを超えました。後で再試行してください。',
+      }[normalizedLang]
     } else if (error.message?.includes('SAFETY')) {
-      errorMessage = 'The response was blocked by safety filters. Try rephrasing your question.'
+      errorMessage = {
+        en: 'The response was blocked by safety filters. Try rephrasing your question.',
+        es: 'La respuesta fue bloqueada por filtros de seguridad. Reformula la pregunta.',
+        ko: '안전 필터에 의해 응답이 차단되었습니다. 질문을 바꿔서 시도해 주세요.',
+        ja: '安全フィルタにより応答がブロックされました。質問を言い換えてください。',
+      }[normalizedLang]
     } else if (error.status === 403 || error.message?.includes('403')) {
-      errorMessage = 'API access denied (403). Make sure Gemini API is enabled in Google Cloud Console.'
+      errorMessage = {
+        en: 'API access denied (403). Make sure Gemini API is enabled in Google Cloud Console.',
+        es: 'Acceso a API denegado (403). Verifica que Gemini API esté habilitada en Google Cloud Console.',
+        ko: 'API 접근이 거부되었습니다(403). Google Cloud Console에서 Gemini API 활성화를 확인하세요.',
+        ja: 'APIアクセスが拒否されました（403）。Google Cloud ConsoleでGemini APIが有効か確認してください。',
+      }[normalizedLang]
     } else if (error.status === 400 || error.message?.includes('400')) {
-      errorMessage = 'Bad request (400). The API key may be invalid or malformed.'
+      errorMessage = {
+        en: 'Bad request (400). The API key may be invalid or malformed.',
+        es: 'Solicitud incorrecta (400). La API key puede ser inválida.',
+        ko: '잘못된 요청(400)입니다. API 키가 잘못되었을 수 있습니다.',
+        ja: '不正なリクエスト（400）です。APIキーが無効な可能性があります。',
+      }[normalizedLang]
     } else if (error.message) {
       errorMessage = `API Error: ${error.message}`
     }
@@ -697,23 +1048,24 @@ export async function sendMessage(message, isPro = true) {
 }
 
 // Update context when price changes
-export function updateContext(currentPrice, valuationTier, revenueMultiple) {
-  currentContext = { currentPrice, valuationTier, revenueMultiple }
+export function updateContext(currentPrice, valuationTier, revenueMultiple, lang = currentLanguage) {
+  const normalizedLang = normalizeLang(lang)
+  if (normalizedLang !== currentLanguage) {
+    chatSession = null
+    currentLanguage = normalizedLang
+  }
+  currentContext = { currentPrice, valuationTier, revenueMultiple, lang: normalizedLang }
 }
 
-// Quick prompts for Pro users
-export const QUICK_PROMPTS = [
-  { label: '🛒 Should I buy?', prompt: 'Based on the current valuation and market conditions, should I buy TSLA shares right now?' },
-  { label: '💰 Time to sell?', prompt: 'Given current valuation levels, is this a good time to take some profits on Tesla?' },
-  { label: '🌊 Headwinds/Tailwinds', prompt: 'What are the current headwinds and tailwinds affecting Tesla stock? What news should I watch?' },
-  { label: '📊 Full Analysis', prompt: 'Give me a complete breakdown of where TSLA stands right now — price, valuation, risks, and opportunities.' },
-]
+export function getQuickPrompts(lang = currentLanguage) {
+  const normalizedLang = normalizeLang(lang)
+  return QUICK_PROMPTS_BY_LANG[normalizedLang]?.pro ?? QUICK_PROMPTS_BY_LANG.en.pro
+}
 
-// Quick prompts for Free users (simpler, beginner-friendly)
-export const QUICK_PROMPTS_FREE = [
-  { label: '🆕 Beginner Guide', prompt: 'I\'m new to investing. What should beginners know about Tesla stock?' },
-  { label: '📈 Current Status', prompt: 'What\'s happening with Tesla stock right now?' },
-]
+export function getQuickPromptsFree(lang = currentLanguage) {
+  const normalizedLang = normalizeLang(lang)
+  return QUICK_PROMPTS_BY_LANG[normalizedLang]?.free ?? QUICK_PROMPTS_BY_LANG.en.free
+}
 
 // Check if Gemini is available (always true for demo)
 export function isGeminiAvailable() {

@@ -81,6 +81,33 @@
   color: var(--lp-text);
 }
 
+.landing-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.lang-toggle {
+  background: rgba(12, 14, 24, 0.75);
+  border: 1px solid var(--lp-border);
+  padding: 0.35rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--lp-text-muted);
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  line-height: 1;
+  appearance: none;
+}
+
+.lang-toggle:hover {
+  border-color: var(--lp-accent);
+  transform: scale(1.1);
+}
+
 .landing-nav-signin {
   background: transparent;
   color: var(--lp-text-muted);

@@ -1,15 +1,17 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import ValuationGauge from '../gauge/ValuationGauge';
+import { useLanguage } from '../../i18n/LanguageContext';
 
 const HeroSection = () => {
   const navigate = useNavigate();
+  const { t } = useLanguage();
 
   return (
     <section className="hero-section">
       <div className="hero-content">
         <h1 className="hero-headline landing-fade-in-up">
-          Is TSLA Overpriced?
+          {t('hero.headline')}
         </h1>
 
         <div className="hero-gauge landing-fade-in-up landing-delay-1">
@@ -21,11 +23,11 @@ const HeroSection = () => {
             className="cta-unlock"
             onClick={() => navigate('/login')}
           >
-            UNLOCK SIGNAL — $1.99
+            {t('hero.cta')}
           </button>
         </div>
         <p className="hero-subtext landing-fade-in-up landing-delay-2">
-          Less than a coffee. Cancel anytime.
+          {t('hero.subtext')}
         </p>
       </div>
     </section>

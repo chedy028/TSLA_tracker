@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import HeroSection from './HeroSection';
 import FeaturesSection from './FeaturesSection';
 import FooterCTA from './FooterCTA';
+import { useLanguage } from '../../i18n/LanguageContext';
 import './LandingPage.css';
 
 const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
@@ -10,6 +11,7 @@ const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
 const LandingPage = () => {
   const [livePrice, setLivePrice] = useState(null);
   const navigate = useNavigate();
+  const { lang, setLang, t, languageOptions } = useLanguage();
 
   // Fetch live TSLA price for potential banner use
   useEffect(() => {
@@ -34,7 +36,7 @@ const LandingPage = () => {
     <div className="landing-page">
       {/* Sticky promo banner */}
       <div className="landing-promo-banner">
-        Launch Offer: <strong>$1.99/mo</strong> — Price jumps to $9.99 soon!
+        {t('nav.bannerPrefix')}<strong>{t('nav.bannerPrice')}</strong>{t('nav.bannerSuffix')}
       </div>
 
       <nav className="landing-nav">
@@ -43,9 +45,23 @@ const LandingPage = () => {
             <span className="landing-logo-emoji">🎮</span>
             <span className="landing-logo-text">TSLA CHEAT CODE</span>
           </div>
-          <button className="landing-nav-signin" onClick={() => navigate('/login')}>
-            Sign In
-          </button>
+          <div className="landing-nav-actions">
+            <select
+              className="lang-toggle"
+              value={lang}
+              onChange={(e) => setLang(e.target.value)}
+              aria-label="Language"
+            >
+              {languageOptions.map((option) => (
+                <option key={option.code} value={option.code}>
+                  {option.short}
+                </option>
+              ))}
+            </select>
+            <button className="landing-nav-signin" onClick={() => navigate('/login')}>
+              {t('nav.signIn')}
+            </button>
+          </div>
         </div>
       </nav>
 

@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
 import { useChat } from '../../hooks/useChat'
+import { useLanguage } from '../../i18n/LanguageContext'
 
 export function InlineChatBox({ currentPrice, valuationTier, revenueMultiple }) {
+  const { t } = useLanguage()
   const {
     messages,
     loading,
@@ -45,16 +47,16 @@ export function InlineChatBox({ currentPrice, valuationTier, revenueMultiple }) 
           </svg>
         </div>
         <div className="chat-bot-info">
-          <h3>TSLA Analysis Assistant</h3>
+          <h3>{t('chat.title')}</h3>
           <span className="chat-bot-status">
-            {isPro ? '✨ Pro Analysis' : '🔓 Free Account'}
+            {isPro ? t('chat.statusPro') : t('chat.statusFree')}
           </span>
         </div>
         <div className="chat-question-counter">
           <span className={`counter ${remainingQuestions <= 1 ? 'low' : ''}`}>
             {remainingQuestions}/{maxQuestions}
           </span>
-          <span className="counter-label">questions left</span>
+          <span className="counter-label">{t('chat.questionsLeft')}</span>
         </div>
       </div>
 
@@ -117,8 +119,8 @@ export function InlineChatBox({ currentPrice, valuationTier, revenueMultiple }) 
           <span className="limit-icon">🔒</span>
           <span className="limit-text">
             {isPro 
-              ? 'Daily limit reached. Try again tomorrow!'
-              : 'Free limit reached. Upgrade to Pro for 10 questions/day!'
+              ? t('chat.limitReachedPro')
+              : t('chat.limitReachedFree')
             }
           </span>
         </div>
@@ -128,7 +130,7 @@ export function InlineChatBox({ currentPrice, valuationTier, revenueMultiple }) 
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={isPro ? "Ask about TSLA valuation..." : "Ask a question..."}
+            placeholder={isPro ? t('chat.placeholderPro') : t('chat.placeholderFree')}
             disabled={loading || isLimitReached}
           />
           <button type="submit" disabled={!input.trim() || loading || isLimitReached}>

@@ -1,16 +1,13 @@
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { useState, useEffect } from 'react'
-import { PriceChart } from './components/PriceChart'
 import LandingPage from './components/landing/LandingPage'
 import { LoginPage } from './components/auth/LoginPage'
 import { AuthCallback } from './components/auth/AuthCallback'
-import { PayWall } from './components/payment/PayWall'
 import { PricingSection } from './components/payment/PricingCard'
 import { SubscriptionStatus } from './components/payment/SubscriptionStatus'
 import { InlineChatBox } from './components/chat/InlineChatBox'
 import { AlertSettings } from './components/alerts/AlertSettings'
 import ValuationGauge from './components/gauge/ValuationGauge'
-import DataCards from './components/dashboard/DataCards'
 import { useStockData } from './hooks/useStockData'
 import { useCompanyFinancials } from './hooks/useCompanyFinancials'
 import { AuthProvider, useAuth } from './hooks/useAuth'
@@ -20,26 +17,22 @@ import RefundPolicy from './components/legal/RefundPolicy'
 import ContactPage from './components/legal/ContactPage'
 import TermsPage from './components/legal/TermsPage'
 import PrivacyPage from './components/legal/PrivacyPage'
+import { LanguageProvider, useLanguage } from './i18n/LanguageContext'
 
 function Dashboard() {
   const [showSettings, setShowSettings] = useState(false)
   const [subscriptionSyncing, setSubscriptionSyncing] = useState(false)
   const [subscriptionSyncError, setSubscriptionSyncError] = useState(null)
   const { user, profile, isPro, loading: authLoading, refreshProfile } = useAuth()
+  const { lang, setLang, t, languageOptions } = useLanguage()
   const navigate = useNavigate()
   const location = useLocation()
 
   const {
     quote,
-    candles,
     loading,
-    candlesLoading,
-    lastUpdated,
     error,
     refetch,
-    selectedRange,
-    changeRange,
-    availableRanges,
   } = useStockData()
   const { financials, loading: financialsLoading, refetch: refetchFinancials } = useCompanyFinancials()
 
@@ -79,7 +72,7 @@ function Dashboard() {
         }
       } catch (err) {
         if (!stopped) {
-          setSubscriptionSyncError(err.message || 'Unable to refresh subscription status.')
+          setSubscriptionSyncError(err.message || 'dashboard.subscriptionRefreshError')
           setSubscriptionSyncing(false)
           stopped = true
           if (intervalId) clearInterval(intervalId)
@@ -88,7 +81,7 @@ function Dashboard() {
       }
 
       if (attempts >= maxAttempts && !stopped) {
-        setSubscriptionSyncError('Subscription update is taking longer than expected.')
+        setSubscriptionSyncError('dashboard.subscriptionSlow')
         setSubscriptionSyncing(false)
         stopped = true
         if (intervalId) clearInterval(intervalId)
@@ -130,6 +123,9 @@ function Dashboard() {
     : 0
   const tier = revenueMultiple ? getValuationTier(revenueMultiple) : null
   const valuationTier = tier?.label || null
+  const resolvedSyncError = subscriptionSyncError?.startsWith('dashboard.')
+    ? t(subscriptionSyncError)
+    : subscriptionSyncError
 
   return (
     <div className="app">
@@ -141,8 +137,20 @@ function Dashboard() {
           <span className="logo-text">TSLA CHEAT CODE</span>
         </div>
         <div className="header-actions">
+          <select
+            className="lang-toggle-dashboard"
+            value={lang}
+            onChange={(e) => setLang(e.target.value)}
+            aria-label="Language"
+          >
+            {languageOptions.map((option) => (
+              <option key={option.code} value={option.code}>
+                {option.short}
+              </option>
+            ))}
+          </select>
           {isPro && (
-            <span className="pro-badge">Pro Active</span>
+            <span className="pro-badge">{t('dashboard.proActive')}</span>
           )}
           {user ? (
             <div className="user-menu">
@@ -159,25 +167,25 @@ function Dashboard() {
                 <div className="user-dropdown">
                   <div className="user-info">
                     <span className="user-email">{user.email}</span>
-                    <span className="user-plan">{isPro ? 'Cheat Code Pro' : 'Free Plan'}</span>
+                    <span className="user-plan">{isPro ? t('dashboard.userPlanPro') : t('dashboard.userPlanFree')}</span>
                   </div>
                   <hr />
                   <button onClick={() => { setShowSettings(false); navigate('/settings') }}>
-                    Alert Settings
+                    {t('dashboard.alertSettings')}
                   </button>
                   {!isPro && (
                     <button onClick={() => { setShowSettings(false); navigate('/pricing') }}>
-                      Upgrade to Pro
+                      {t('dashboard.upgradeToPro')}
                     </button>
                   )}
                   <hr />
-                  <button onClick={handleSignOut}>Sign Out</button>
+                  <button onClick={handleSignOut}>{t('dashboard.signOut')}</button>
                 </div>
               )}
             </div>
           ) : (
             <button className="login-btn" onClick={() => navigate('/login')}>
-              Sign In
+              {t('dashboard.signIn')}
             </button>
           )}
         </div>
@@ -186,15 +194,15 @@ function Dashboard() {
       <main className="main">
         {subscriptionSyncing && !subscriptionSyncError && !isPro && (
           <div className="alert-message">
-            Finalizing your subscription. This can take a few seconds.
+            {t('dashboard.finalizingSubscription')}
           </div>
         )}
         {subscriptionSyncError && (
-          <div className="alert-message error">{subscriptionSyncError}</div>
+          <div className="alert-message error">{resolvedSyncError}</div>
         )}
         {isPro && new URLSearchParams(location.search).get('success') === 'true' && (
           <div className="alert-message success">
-            Subscription active. Thanks for upgrading!
+            {t('dashboard.subscriptionActive')}
           </div>
         )}
 
@@ -207,43 +215,12 @@ function Dashboard() {
           />
         </div>
 
-        {/* Pro: signal text + data cards + chat + chart */}
         {isPro ? (
-          <>
-            {tier && (
-              <div className="signal-section">
-                <span className="signal-label">SIGNAL:</span>
-                <span className="signal-text" style={{ color: tier.signalColor }}>
-                  {tier.signal}
-                </span>
-              </div>
-            )}
-
-            <DataCards
-              quote={quote}
-              revenueMultiple={revenueMultiple}
-              financials={financials}
-            />
-
-            <InlineChatBox
-              currentPrice={quote?.current}
-              valuationTier={valuationTier}
-              revenueMultiple={revenueMultiple}
-            />
-
-            <PayWall feature="Pro Features">
-              <PriceChart
-                candles={candles}
-                loading={loading}
-                candlesLoading={candlesLoading}
-                financials={financials}
-                currentPrice={quote?.current}
-                selectedRange={selectedRange}
-                onRangeChange={changeRange}
-                availableRanges={availableRanges}
-              />
-            </PayWall>
-          </>
+          <InlineChatBox
+            currentPrice={quote?.current}
+            valuationTier={valuationTier}
+            revenueMultiple={revenueMultiple}
+          />
         ) : (
           /* Free authenticated: locked gauge + CTA */
           <div className="free-cta-section">
@@ -251,9 +228,9 @@ function Dashboard() {
               className="cta-unlock-dashboard"
               onClick={() => navigate('/pricing')}
             >
-              UNLOCK SIGNAL — $1.99
+              {t('dashboard.unlockCta')}
             </button>
-            <p className="free-cta-subtext">Less than a coffee. Cancel anytime.</p>
+            <p className="free-cta-subtext">{t('dashboard.unlockSubtext')}</p>
           </div>
         )}
       </main>
@@ -261,7 +238,7 @@ function Dashboard() {
       <footer className="footer">
         <p>
           <span className="disclaimer">
-            Not financial advice. Do your own research before investing.
+            {t('dashboard.disclaimer')}
           </span>
         </p>
       </footer>
@@ -271,6 +248,7 @@ function Dashboard() {
 
 function SettingsPage() {
   const { user, loading } = useAuth()
+  const { t } = useLanguage()
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -299,14 +277,14 @@ function SettingsPage() {
           <span className="logo-text">TSLA CHEAT CODE</span>
         </div>
         <button className="back-btn" onClick={() => navigate('/dashboard')}>
-          ← Back to Dashboard
+          ← {t('pages.backToDashboard')}
         </button>
       </header>
 
       <main className="main settings-main">
         <div className="settings-grid">
           <div className="settings-section">
-            <h2>Settings</h2>
+            <h2>{t('pages.settingsTitle')}</h2>
             <SubscriptionStatus />
           </div>
           <div className="settings-section">
@@ -319,6 +297,7 @@ function SettingsPage() {
 }
 
 function PricingPage() {
+  const { t } = useLanguage()
   const navigate = useNavigate()
 
   return (
@@ -331,7 +310,7 @@ function PricingPage() {
           <span className="logo-text">TSLA CHEAT CODE</span>
         </div>
         <button className="back-btn" onClick={() => navigate('/dashboard')}>
-          ← Back to Dashboard
+          ← {t('pages.backToDashboard')}
         </button>
       </header>
 
@@ -365,6 +344,7 @@ function HomeRoute() {
 function App() {
   return (
     <BrowserRouter>
+      <LanguageProvider>
       <AuthProvider>
         <Routes>
           <Route path="/" element={<HomeRoute />} />
@@ -380,6 +360,7 @@ function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>
+      </LanguageProvider>
     </BrowserRouter>
   )
 }

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { VALUATION_TIERS, GAUGE_CONFIG, getValuationTier } from '../../config/constants'
+import { useLanguage } from '../../i18n/LanguageContext'
 import './ValuationGauge.css'
 
 const DIAL_START_ANGLE = 225
@@ -38,6 +39,7 @@ function describeArc(cx, cy, radius, startAngle, endAngle) {
 }
 
 export default function ValuationGauge({ multiple, locked, tier }) {
+  const { t } = useLanguage()
   const cx = 250
   const cy = 190
   const radius = 140
@@ -62,6 +64,10 @@ export default function ValuationGauge({ multiple, locked, tier }) {
   const liveMultiple = typeof multiple === 'number' && Number.isFinite(multiple) && multiple > 0 ? multiple : null
   const effectiveMultiple = liveMultiple ?? cachedMultiple
   const effectiveTier = tier ?? (effectiveMultiple ? getValuationTier(effectiveMultiple) : null)
+  const tierKey = effectiveTier?.id
+  const localizedTierLabel = tierKey ? t(`tiers.${tierKey}.label`) : t('gauge.priceFeed')
+  const localizedSignal = tierKey ? t(`tiers.${tierKey}.signal`) : 'WAIT'
+  const localizedTierDescription = tierKey ? t(`tiers.${tierKey}.description`) : null
 
   const segments = useMemo(
     () =>
@@ -99,11 +105,11 @@ export default function ValuationGauge({ multiple, locked, tier }) {
   const needleTargetRotation = needleAngle
   const currentColor = effectiveTier?.signalColor || effectiveTier?.color || '#8fa0b7'
 
-  const actionText = effectiveTier?.signal || 'WAIT'
-  const tierLabel = effectiveTier?.label || 'PRICE FEED'
+  const actionText = localizedSignal
+  const tierLabel = localizedTierLabel
   const statusText = effectiveMultiple
-    ? `${effectiveMultiple.toFixed(1)}x P/S${liveMultiple ? '' : ' (cached)'}`
-    : 'Waiting for live TSLA data'
+    ? `${effectiveMultiple.toFixed(1)}x P/S${liveMultiple ? '' : ` (${t('gauge.cachedTag')})`}`
+    : t('gauge.waitingForLiveData')
 
   return (
     <div className={`gauge-wrapper ${locked ? 'gauge-locked' : ''}`}>
@@ -156,7 +162,7 @@ export default function ValuationGauge({ multiple, locked, tier }) {
               fontFamily="'JetBrains Mono', monospace"
               letterSpacing="0.1em"
             >
-              CURRENT VALUATION:
+              {t('gauge.currentValuation')}
             </text>
 
             <text
@@ -226,11 +232,11 @@ export default function ValuationGauge({ multiple, locked, tier }) {
               fontFamily="'JetBrains Mono', monospace"
               letterSpacing="0.08em"
             >
-              {'ACTION: '}
+              {`${t('gauge.action')}: `}
               <tspan fill={currentColor}>{actionText}</tspan>
             </text>
 
-            {effectiveTier?.description && (
+            {localizedTierDescription && (
               <text
                 x={cx}
                 y={cy + 96}
@@ -240,7 +246,7 @@ export default function ValuationGauge({ multiple, locked, tier }) {
                 fontFamily="'JetBrains Mono', monospace"
                 letterSpacing="0.04em"
               >
-                {effectiveTier.description.toUpperCase()}
+                {localizedTierDescription.toUpperCase()}
               </text>
             )}
           </svg>
@@ -254,7 +260,7 @@ export default function ValuationGauge({ multiple, locked, tier }) {
                 <path d="M7 11V7a5 5 0 0 1 10 0v4" />
               </svg>
             </div>
-            <span className="gauge-lock-text">ALGO SIGNAL LOCKED</span>
+            <span className="gauge-lock-text">{t('gauge.lock')}</span>
           </div>
         )}
       </div>
