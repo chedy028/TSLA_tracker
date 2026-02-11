@@ -1,11 +1,12 @@
-import { useMemo } from 'react'
-import { VALUATION_TIERS, GAUGE_CONFIG } from '../../config/constants'
+import { useEffect, useMemo, useState } from 'react'
+import { VALUATION_TIERS, GAUGE_CONFIG, getValuationTier } from '../../config/constants'
 import './ValuationGauge.css'
 
 const DIAL_START_ANGLE = 225
 const DIAL_SWEEP_ANGLE = 270
 const DIAL_END_ANGLE = DIAL_START_ANGLE + DIAL_SWEEP_ANGLE
 const SEGMENT_GAP_DEG = 2.2
+const MULTIPLE_CACHE_KEY = 'tsla:last_revenue_multiple'
 
 const VALUE_MIN = GAUGE_CONFIG.minMultiple
 const VALUE_MAX = GAUGE_CONFIG.maxMultiple
@@ -43,6 +44,24 @@ export default function ValuationGauge({ multiple, locked, tier }) {
   const segmentStroke = 34
   const trackStroke = 42
   const bezelStroke = 8
+  const [cachedMultiple, setCachedMultiple] = useState(() => {
+    if (typeof window === 'undefined') return null
+    const raw = window.localStorage.getItem(MULTIPLE_CACHE_KEY)
+    const parsed = Number(raw)
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+  })
+
+  useEffect(() => {
+    if (typeof multiple !== 'number' || !Number.isFinite(multiple) || multiple <= 0) return
+    setCachedMultiple(multiple)
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(MULTIPLE_CACHE_KEY, String(multiple))
+    }
+  }, [multiple])
+
+  const liveMultiple = typeof multiple === 'number' && Number.isFinite(multiple) && multiple > 0 ? multiple : null
+  const effectiveMultiple = liveMultiple ?? cachedMultiple
+  const effectiveTier = tier ?? (effectiveMultiple ? getValuationTier(effectiveMultiple) : null)
 
   const segments = useMemo(
     () =>
@@ -74,13 +93,17 @@ export default function ValuationGauge({ multiple, locked, tier }) {
     [cx, cy, radius]
   )
 
-  const needleAngle = valueToAngle(typeof multiple === 'number' ? multiple : VALUE_MIN)
+  const needleAngle = valueToAngle(effectiveMultiple ?? VALUE_MIN)
   const needleLength = radius - 18
   const needleStartRotation = DIAL_START_ANGLE
   const needleTargetRotation = needleAngle
-  const currentColor = tier?.signalColor || tier?.color || '#00ff88'
+  const currentColor = effectiveTier?.signalColor || effectiveTier?.color || '#8fa0b7'
 
-  const actionText = tier?.signal || 'LOADING'
+  const actionText = effectiveTier?.signal || 'WAIT'
+  const tierLabel = effectiveTier?.label || 'PRICE FEED'
+  const statusText = effectiveMultiple
+    ? `${effectiveMultiple.toFixed(1)}x P/S${liveMultiple ? '' : ' (cached)'}`
+    : 'Waiting for live TSLA data'
 
   return (
     <div className={`gauge-wrapper ${locked ? 'gauge-locked' : ''}`}>
@@ -136,22 +159,33 @@ export default function ValuationGauge({ multiple, locked, tier }) {
               CURRENT VALUATION:
             </text>
 
-            {tier && (
-              <text
-                x={cx}
-                y={cy - 2}
-                fill={tier.color}
-                fontSize="42"
-                fontWeight="700"
-                textAnchor="middle"
-                fontFamily="'JetBrains Mono', monospace"
-                letterSpacing="0.05em"
-              >
-                {tier.label}
-              </text>
-            )}
+            <text
+              x={cx}
+              y={cy - 2}
+              fill={effectiveTier ? effectiveTier.color : 'rgba(214, 220, 232, 0.9)'}
+              fontSize="42"
+              fontWeight="700"
+              textAnchor="middle"
+              fontFamily="'JetBrains Mono', monospace"
+              letterSpacing="0.05em"
+            >
+              {tierLabel}
+            </text>
 
-            <g
+            <text
+              x={cx}
+              y={cy + 20}
+              fill="rgba(200, 206, 218, 0.68)"
+              fontSize="13"
+              textAnchor="middle"
+              fontFamily="'JetBrains Mono', monospace"
+              letterSpacing="0.04em"
+            >
+              {statusText.toUpperCase()}
+            </text>
+
+            {effectiveMultiple && (
+              <g
               className="gauge-needle"
               style={{
                 '--needle-start-rotation': `${needleStartRotation}deg`,
@@ -179,7 +213,8 @@ export default function ValuationGauge({ multiple, locked, tier }) {
               />
               <circle cx={cx} cy={cy} r="16" fill="#9aa0aa" />
               <circle cx={cx} cy={cy} r="7" fill="#1a1a22" />
-            </g>
+              </g>
+            )}
 
             <text
               x={cx}
@@ -195,7 +230,7 @@ export default function ValuationGauge({ multiple, locked, tier }) {
               <tspan fill={currentColor}>{actionText}</tspan>
             </text>
 
-            {tier?.description && (
+            {effectiveTier?.description && (
               <text
                 x={cx}
                 y={cy + 96}
@@ -205,7 +240,7 @@ export default function ValuationGauge({ multiple, locked, tier }) {
                 fontFamily="'JetBrains Mono', monospace"
                 letterSpacing="0.04em"
               >
-                {tier.description.toUpperCase()}
+                {effectiveTier.description.toUpperCase()}
               </text>
             )}
           </svg>
