@@ -2,6 +2,8 @@ import { loadStripe } from '@stripe/stripe-js'
 import { supabase } from './supabase'
 
 const stripePublicKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 let stripePromise = null
 
@@ -39,65 +41,132 @@ export const PRICING = {
   },
 }
 
-// Create checkout session
-export async function createCheckoutSession(userId, userEmail) {
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-  const priceId = PRICING.pro.priceId
-  
-  // Validate configuration
+function parseFunctionError(status, bodyText, fallbackMessage) {
+  let errorMessage = fallbackMessage
+  try {
+    const payload = JSON.parse(bodyText)
+    errorMessage = payload.error || payload.message || fallbackMessage
+  } catch {
+    if (bodyText) {
+      errorMessage = bodyText.slice(0, 180)
+    }
+  }
+
+  if (status === 401) {
+    return 'Session expired. Please sign in again and retry checkout.'
+  }
+  if (status === 403) {
+    return 'Permission denied. Please sign out and sign in again.'
+  }
+  if (status === 404) {
+    return 'Checkout service is unavailable. Edge function may not be deployed.'
+  }
+
+  return errorMessage
+}
+
+async function getAuthToken({ forceRefresh = false } = {}) {
+  if (!supabase) {
+    throw new Error('Supabase client not configured')
+  }
+
+  if (forceRefresh) {
+    const { data, error } = await supabase.auth.refreshSession()
+    if (error || !data?.session?.access_token) {
+      throw new Error('Session expired. Please sign in again.')
+    }
+    return data.session.access_token
+  }
+
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
+  if (sessionError) {
+    throw new Error('Unable to read auth session. Please sign in again.')
+  }
+
+  if (sessionData?.session?.access_token) {
+    return sessionData.session.access_token
+  }
+
+  const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession()
+  if (refreshError || !refreshed?.session?.access_token) {
+    throw new Error('Please sign in to continue.')
+  }
+
+  return refreshed.session.access_token
+}
+
+async function invokeProtectedFunction(path, payload, fallbackMessage) {
   if (!supabaseUrl) {
     throw new Error('Supabase URL not configured')
   }
+
+  const invoke = async (token) => {
+    const headers = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    }
+
+    if (supabaseAnonKey) {
+      headers.apikey = supabaseAnonKey
+    }
+
+    return fetch(`${supabaseUrl}/functions/v1/${path}`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+    })
+  }
+
+  let accessToken = await getAuthToken()
+  let response = await invoke(accessToken)
+
+  // Retry once with an explicit refresh if token is stale.
+  if (response.status === 401) {
+    accessToken = await getAuthToken({ forceRefresh: true })
+    response = await invoke(accessToken)
+  }
+
+  const responseText = await response.text()
+
+  if (!response.ok) {
+    throw new Error(parseFunctionError(response.status, responseText, fallbackMessage))
+  }
+
+  try {
+    return JSON.parse(responseText)
+  } catch {
+    throw new Error('Invalid function response format')
+  }
+}
+
+// Create checkout session
+export async function createCheckoutSession(userId, userEmail) {
+  const priceId = PRICING.pro.priceId
   
+  // Validate configuration
   if (!priceId) {
     throw new Error('Stripe Price ID not configured (VITE_STRIPE_PRICE_ID)')
   }
-  
-  // Get the user's session token for authorization
-  const { data: { session } } = await supabase.auth.getSession()
-  const accessToken = session?.access_token
-  
-  if (!accessToken) {
-    throw new Error('Please sign in to subscribe')
-  }
-  
+
   console.log('Creating checkout session...', { userId, userEmail, priceId })
-  
-  const response = await fetch(`${supabaseUrl}/functions/v1/create-checkout`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${accessToken}`,
-    },
-    body: JSON.stringify({
+
+  const data = await invokeProtectedFunction(
+    'create-checkout',
+    {
+      // Keep fields for backward compatibility with function versions.
       userId,
       userEmail,
       priceId,
       successUrl: `${window.location.origin}/dashboard?success=true`,
       cancelUrl: `${window.location.origin}/pricing?canceled=true`,
-    }),
-  })
-  
-  const responseText = await response.text()
-  console.log('Checkout response:', response.status, responseText)
-  
-  if (!response.ok) {
-    let errorMessage = 'Failed to create checkout session'
-    try {
-      const errorData = JSON.parse(responseText)
-      errorMessage = errorData.error || errorMessage
-    } catch {
-      // If response isn't JSON, it might be a 404 or server error
-      if (response.status === 404) {
-        errorMessage = 'Checkout service not found. Edge function may not be deployed.'
-      } else {
-        errorMessage = `Server error (${response.status}): ${responseText.substring(0, 100)}`
-      }
-    }
-    throw new Error(errorMessage)
+    },
+    'Failed to create checkout session'
+  )
+
+  if (!data?.sessionId) {
+    throw new Error('Checkout session was created without a session id')
   }
-  
-  const data = JSON.parse(responseText)
+
   return data.sessionId
 }
 
@@ -118,35 +187,19 @@ export async function redirectToCheckout(userId, userEmail) {
 
 // Create customer portal session for managing subscription
 export async function createPortalSession(customerId) {
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-  
-  // Get the user's session token for authorization
-  const { data: { session } } = await supabase.auth.getSession()
-  const accessToken = session?.access_token
-  
-  if (!accessToken) {
-    throw new Error('Please sign in to manage subscription')
-  }
-  
-  const response = await fetch(`${supabaseUrl}/functions/v1/create-portal`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${accessToken}`,
-    },
-    body: JSON.stringify({
+  const data = await invokeProtectedFunction(
+    'create-portal',
+    {
       customerId,
       returnUrl: `${window.location.origin}/dashboard`,
-    }),
-  })
-  
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Unknown error' }))
-    throw new Error(error.error || 'Failed to create portal session')
-  }
-  
-  const { url } = await response.json()
-  return url
-}
+    },
+    'Failed to create billing portal session'
+  )
 
+  if (!data?.url) {
+    throw new Error('Billing portal URL was not returned')
+  }
+
+  return data.url
+}
 
