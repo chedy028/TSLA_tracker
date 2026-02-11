@@ -2,11 +2,36 @@
 .gauge-wrapper {
   position: relative;
   width: 100%;
-  max-width: 420px;
+  max-width: 740px;
   margin: 0 auto;
 }
 
+.gauge-card {
+  position: relative;
+  background:
+    radial-gradient(90% 110% at 68% 42%, rgba(210, 58, 32, 0.14) 0%, rgba(210, 58, 32, 0) 66%),
+    linear-gradient(145deg, #161722 0%, #0b0d17 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 1.65rem 1.15rem 1.1rem;
+  overflow: hidden;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 20px 40px rgba(0, 0, 0, 0.28);
+}
+
+.gauge-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 28% 28%, rgba(56, 180, 255, 0.05) 0%, rgba(56, 180, 255, 0) 40%),
+    radial-gradient(circle at 75% 58%, rgba(255, 150, 64, 0.08) 0%, rgba(255, 150, 64, 0) 44%);
+  pointer-events: none;
+}
+
 .gauge-svg-container {
+  position: relative;
   transition: filter 0.3s ease;
 }
 
@@ -22,23 +47,24 @@
   display: block;
 }
 
-/* Needle animation */
 .gauge-needle {
+  transform: rotate(var(--needle-target-rotation));
+  transform-box: fill-box;
+  filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.2));
   animation: gauge-needle-sweep 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
 @keyframes gauge-needle-sweep {
   from {
-    transform: rotate(-90deg);
+    transform: rotate(var(--needle-start-rotation));
     opacity: 0;
   }
   to {
-    transform: rotate(calc(var(--needle-angle) - 90deg));
+    transform: rotate(var(--needle-target-rotation));
     opacity: 1;
   }
 }
 
-/* Lock overlay */
 .gauge-lock-overlay {
   position: absolute;
   inset: 0;
@@ -47,6 +73,7 @@
   align-items: center;
   justify-content: center;
   gap: 0.75rem;
+  border-radius: 16px;
 }
 
 .gauge-lock-icon {
@@ -71,27 +98,34 @@
   text-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
 }
 
-/* Tier label below gauge */
-.gauge-tier-label {
-  text-align: center;
-  font-family: 'JetBrains Mono', 'Fira Code', monospace;
-  font-size: 1.5rem;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  margin-top: -0.5rem;
-  text-shadow: 0 0 20px currentColor;
-}
-
-@media (max-width: 480px) {
+@media (max-width: 768px) {
   .gauge-wrapper {
-    max-width: 320px;
+    max-width: 620px;
   }
 
-  .gauge-tier-label {
-    font-size: 1.25rem;
+  .gauge-card {
+    padding: 1.25rem 0.8rem 0.8rem;
+  }
+}
+
+@media (max-width: 520px) {
+  .gauge-wrapper {
+    max-width: 100%;
+  }
+
+  .gauge-card {
+    padding: 1rem 0.45rem 0.55rem;
+    border-radius: 12px;
   }
 
   .gauge-lock-text {
     font-size: 0.75rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gauge-needle,
+  .gauge-lock-icon {
+    animation: none;
   }
 }
