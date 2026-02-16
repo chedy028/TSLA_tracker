@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
 
 const SYMBOL = 'TSLA'
+const QUOTE_CACHE_KEY = 'tsla:quote_cache_v1'
+const REQUEST_TIMEOUT_MS = 7000
+const FETCH_ROUNDS = 2
 
 // Range configuration mapping
 // Maps user-friendly range names to Yahoo Finance API parameters
@@ -11,73 +14,156 @@ const RANGE_CONFIG = {
   '5Y': { range: '5y', interval: '1d' },
 }
 
+const YAHOO_CHART_URL = `https://query1.finance.yahoo.com/v8/finance/chart/${SYMBOL}`
+
+const PROXY_BUILDERS = [
+  (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+  (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+  (url) => `https://cors.isomorphic-git.org/${url}`,
+]
+
 // Convert Unix timestamp to appropriate format for TradingView charts
 // lightweight-charts requires Unix timestamp (number) for all time values
-function formatTime(unixTimestamp, isIntraday = false) {
+function formatTime(unixTimestamp) {
   const date = new Date(unixTimestamp * 1000)
   // Always return Unix timestamp in seconds (not milliseconds)
   return Math.floor(date.getTime() / 1000)
 }
 
-// Yahoo Finance API via CORS proxy (no API key needed)
-const CORS_PROXY = 'https://api.allorigins.win/raw?url='
+function readCachedQuote() {
+  if (typeof window === 'undefined') return null
 
-function buildYahooUrl(range, interval) {
-  return `${CORS_PROXY}${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${SYMBOL}?interval=${interval}&range=${range}`)}`
+  try {
+    const raw = window.localStorage.getItem(QUOTE_CACHE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    if (!parsed?.quote || !parsed?.cachedAt) return null
+    return parsed
+  } catch (error) {
+    console.warn('Invalid quote cache payload:', error)
+    return null
+  }
+}
+
+function writeCachedQuote(quote) {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(
+      QUOTE_CACHE_KEY,
+      JSON.stringify({
+        quote,
+        cachedAt: Date.now(),
+      })
+    )
+  } catch (error) {
+    console.warn('Failed to write quote cache:', error)
+  }
+}
+
+async function fetchJsonWithTimeout(url, timeoutMs = REQUEST_TIMEOUT_MS) {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const response = await fetch(url, { signal: controller.signal })
+    if (!response.ok) {
+      throw new Error(`Request failed (${response.status})`)
+    }
+    return await response.json()
+  } finally {
+    clearTimeout(timeoutId)
+  }
+}
+
+async function fetchYahooChart(range, interval) {
+  const upstreamUrl = `${YAHOO_CHART_URL}?interval=${interval}&range=${range}`
+  let lastError = null
+
+  for (let round = 0; round < FETCH_ROUNDS; round += 1) {
+    for (const buildProxyUrl of PROXY_BUILDERS) {
+      const proxiedUrl = buildProxyUrl(upstreamUrl)
+      try {
+        return await fetchJsonWithTimeout(proxiedUrl)
+      } catch (error) {
+        lastError = error
+      }
+    }
+  }
+
+  throw lastError || new Error('Failed to fetch Yahoo Finance data')
 }
 
 export function useStockData(initialRange = '5Y') {
-  const [quote, setQuote] = useState(null)
+  const initialCache = readCachedQuote()
+
+  const [quote, setQuote] = useState(initialCache?.quote || null)
   const [candles, setCandles] = useState([])
   const [loading, setLoading] = useState(true)
   const [candlesLoading, setCandlesLoading] = useState(false)
   const [error, setError] = useState(null)
-  const [lastUpdated, setLastUpdated] = useState(null)
+  const [lastUpdated, setLastUpdated] = useState(
+    initialCache?.cachedAt ? new Date(initialCache.cachedAt) : null
+  )
   const [selectedRange, setSelectedRange] = useState(initialRange)
+  const [isQuoteCached, setIsQuoteCached] = useState(Boolean(initialCache?.quote))
+  const [quoteCachedAt, setQuoteCachedAt] = useState(initialCache?.cachedAt || null)
 
   // Fetch quote from Yahoo Finance (always uses 1d range)
   const fetchQuote = useCallback(async () => {
     try {
-      const url = buildYahooUrl('1d', '1d')
-      const response = await fetch(url)
-      if (!response.ok) {
-        throw new Error('Failed to fetch quote')
-      }
-      
-      const data = await response.json()
+      const data = await fetchYahooChart('1d', '1d')
       const result = data.chart?.result?.[0]
-      
+
       if (!result) {
-        throw new Error('No data received')
+        throw new Error('No quote data received')
       }
-      
+
       const meta = result.meta
       const quoteData = result.indicators?.quote?.[0]
-      
-      if (meta?.regularMarketPrice) {
-        const currentPrice = meta.regularMarketPrice
-        const prevClose = meta.previousClose || meta.chartPreviousClose || currentPrice
-        const change = currentPrice - prevClose
-        const changePercent = prevClose ? (change / prevClose) * 100 : 0
-        
-        setQuote({
-          current: currentPrice,
-          change: change,
-          changePercent: changePercent,
-          high: meta.regularMarketDayHigh || quoteData?.high?.[0] || currentPrice,
-          low: meta.regularMarketDayLow || quoteData?.low?.[0] || currentPrice,
-          open: meta.regularMarketOpen || quoteData?.open?.[0] || currentPrice,
-          previousClose: prevClose,
-        })
-        setLastUpdated(new Date())
-        setError(null)
-      } else {
+
+      if (!meta?.regularMarketPrice) {
         throw new Error('Invalid quote data')
       }
+
+      const currentPrice = meta.regularMarketPrice
+      const prevClose = meta.previousClose || meta.chartPreviousClose || currentPrice
+      const change = currentPrice - prevClose
+      const changePercent = prevClose ? (change / prevClose) * 100 : 0
+
+      const liveQuote = {
+        current: currentPrice,
+        change,
+        changePercent,
+        high: meta.regularMarketDayHigh || quoteData?.high?.[0] || currentPrice,
+        low: meta.regularMarketDayLow || quoteData?.low?.[0] || currentPrice,
+        open: meta.regularMarketOpen || quoteData?.open?.[0] || currentPrice,
+        previousClose: prevClose,
+      }
+
+      setQuote(liveQuote)
+      setIsQuoteCached(false)
+      setQuoteCachedAt(null)
+      setLastUpdated(new Date())
+      setError(null)
+      writeCachedQuote(liveQuote)
+      return
     } catch (err) {
       console.error('Quote fetch error:', err)
-      setError(err.message)
     }
+
+    const cached = readCachedQuote()
+    if (cached?.quote) {
+      setQuote(cached.quote)
+      setIsQuoteCached(true)
+      setQuoteCachedAt(cached.cachedAt)
+      setLastUpdated(new Date(cached.cachedAt))
+      setError(null)
+      return
+    }
+
+    setQuote(null)
+    setIsQuoteCached(false)
+    setQuoteCachedAt(null)
+    setError('Failed to fetch live quote data')
   }, [])
 
   // Fetch historical candles from Yahoo Finance
@@ -89,34 +175,27 @@ export function useStockData(initialRange = '5Y') {
     }
 
     setCandlesLoading(true)
-    
+
     try {
-      const url = buildYahooUrl(config.range, config.interval)
-      const response = await fetch(url)
-      if (!response.ok) {
-        throw new Error('Failed to fetch history')
-      }
-      
-      const data = await response.json()
+      const data = await fetchYahooChart(config.range, config.interval)
       const result = data.chart?.result?.[0]
-      
+
       if (!result) {
         throw new Error('No history data')
       }
-      
+
       const timestamps = result.timestamp
       const quoteData = result.indicators?.quote?.[0]
-      const isIntraday = range === '1D'
-      
+
       if (timestamps && quoteData) {
         const formattedCandles = timestamps.map((time, i) => ({
-          time: formatTime(time, isIntraday),
+          time: formatTime(time),
           open: quoteData.open[i],
           high: quoteData.high[i],
           low: quoteData.low[i],
           close: quoteData.close[i],
-        })).filter(c => c.open && c.close) // Filter out null values
-        
+        })).filter((c) => c.open && c.close) // Filter out null values
+
         setCandles(formattedCandles)
       }
     } catch (err) {
@@ -166,5 +245,7 @@ export function useStockData(initialRange = '5Y') {
     changeRange,
     refetch: fetchAll,
     availableRanges: Object.keys(RANGE_CONFIG),
+    isQuoteCached,
+    quoteCachedAt,
   }
 }

@@ -1,16 +1,60 @@
 import { useState, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from './useAuth'
-import { redirectToCheckout, createPortalSession, PRICING } from '../lib/stripe'
+import {
+  redirectToCheckout,
+  createPortalSession,
+  PRICING,
+  PAYMENT_ERROR_CODES,
+  isPaymentError,
+} from '../lib/stripe'
+import { signOut } from '../lib/supabase'
+import { useLanguage } from '../i18n/LanguageContext'
 
 export function useSubscription() {
   const { user, profile, isPro, refreshProfile } = useAuth()
+  const { t } = useLanguage()
+  const navigate = useNavigate()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
+  const redirectToPricingLogin = useCallback(() => {
+    navigate('/login?next=%2Fpricing', {
+      replace: true,
+      state: {
+        from: { pathname: '/pricing' },
+        reason: 'auth_required',
+      },
+    })
+  }, [navigate])
+
+  const resolveLocalizedError = useCallback((err, fallbackKey) => {
+    if (isPaymentError(err)) {
+      if (err.messageKey) return t(err.messageKey)
+      return t(fallbackKey)
+    }
+    if (err instanceof Error && err.message) return err.message
+    return t(fallbackKey)
+  }, [t])
+
+  const handleAuthRequired = useCallback(async () => {
+    const message = t('paymentErrors.authRequired')
+    setError(message)
+    alert(message)
+    try {
+      await signOut()
+    } catch (signOutError) {
+      console.warn('Failed to sign out stale session:', signOutError)
+    }
+    redirectToPricingLogin()
+  }, [redirectToPricingLogin, t])
+
   const subscribe = useCallback(async () => {
     if (!user) {
-      setError('Please sign in to subscribe')
-      alert('Please sign in to subscribe')
+      const message = t('paymentErrors.signInRequired')
+      setError(message)
+      alert(message)
+      redirectToPricingLogin()
       return
     }
 
@@ -22,17 +66,22 @@ export function useSubscription() {
       await redirectToCheckout(user.id, user.email)
     } catch (err) {
       console.error('Subscription error:', err)
-      setError(err.message)
-      // Show error to user
-      alert(`Checkout error: ${err.message}`)
+      if (isPaymentError(err) && err.code === PAYMENT_ERROR_CODES.AUTH_REQUIRED) {
+        await handleAuthRequired()
+        return
+      }
+
+      const message = resolveLocalizedError(err, 'paymentErrors.checkoutFailed')
+      setError(message)
+      alert(`${t('pricing.checkoutErrorPrefix')}: ${message}`)
     } finally {
       setLoading(false)
     }
-  }, [user])
+  }, [user, t, redirectToPricingLogin, handleAuthRequired, resolveLocalizedError])
 
   const manageSubscription = useCallback(async () => {
     if (!profile?.stripe_customer_id) {
-      setError('No subscription found')
+      setError(t('subscription.noSubscription'))
       return
     }
 
@@ -44,11 +93,16 @@ export function useSubscription() {
       window.location.href = url
     } catch (err) {
       console.error('Portal error:', err)
-      setError(err.message)
+      if (isPaymentError(err) && err.code === PAYMENT_ERROR_CODES.AUTH_REQUIRED) {
+        await handleAuthRequired()
+        return
+      }
+
+      setError(resolveLocalizedError(err, 'paymentErrors.portalFailed'))
     } finally {
       setLoading(false)
     }
-  }, [profile])
+  }, [profile, t, handleAuthRequired, resolveLocalizedError])
 
   return {
     isPro,
@@ -62,8 +116,6 @@ export function useSubscription() {
     subscriptionEndDate: profile?.subscription_end_date,
   }
 }
-
-
 
 
 

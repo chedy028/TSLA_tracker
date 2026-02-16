@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { signInWithProvider, supabase } from '../../lib/supabase'
+import { useLanguage } from '../../i18n/LanguageContext'
 
 const PROVIDERS = [
   {
@@ -18,19 +19,20 @@ const PROVIDERS = [
   },
 ]
 
-export function SocialButtons({ onError, disabled = false }) {
+export function SocialButtons({ onError, disabled = false, nextPath = '/dashboard' }) {
   const [loading, setLoading] = useState(null)
+  const { t } = useLanguage()
 
   const handleSignIn = async (providerId) => {
     // Check if Supabase is configured
     if (!supabase) {
-      onError?.('Authentication is not configured. Please check environment variables.')
+      onError?.(t('auth.notConfigured'))
       return
     }
 
     setLoading(providerId)
     try {
-      await signInWithProvider(providerId)
+      await signInWithProvider(providerId, { nextPath })
       // OAuth redirects away immediately; callback route owns post-login navigation.
     } catch (error) {
       console.error(`${providerId} sign in error:`, error)
@@ -38,11 +40,11 @@ export function SocialButtons({ onError, disabled = false }) {
       // Parse the error for better user feedback
       let errorMessage = error.message
       if (error.message.includes('ERR_CERT') || error.message.includes('certificate')) {
-        errorMessage = 'Connection security error. Please ensure your system date/time is correct.'
+        errorMessage = t('auth.connectionSecurityError')
       } else if (error.message.includes('not enabled') || error.message.includes('provider')) {
-        errorMessage = `${providerId} authentication is not enabled. Please try another method.`
+        errorMessage = t('auth.providerNotEnabled', { provider: providerId })
       } else if (error.message.includes('popup')) {
-        errorMessage = 'Pop-up was blocked. Please allow pop-ups and try again.'
+        errorMessage = t('auth.popupBlocked')
       }
       
       onError?.(errorMessage)
@@ -69,7 +71,7 @@ export function SocialButtons({ onError, disabled = false }) {
           ) : (
             <>
               <span className="social-icon">{provider.icon}</span>
-              <span>Continue with {provider.name}</span>
+              <span>{t('auth.continueWithProvider', { provider: provider.name })}</span>
             </>
           )}
         </button>
@@ -77,4 +79,3 @@ export function SocialButtons({ onError, disabled = false }) {
     </div>
   )
 }
-

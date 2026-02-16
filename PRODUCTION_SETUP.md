@@ -178,6 +178,48 @@ After Vercel deploys, update Supabase:
    https://your-app.vercel.app/auth/callback
    ```
 
+## Step 6.5: Migration and Deployment Order (Stability Guard)
+
+When shipping new features, always deploy in this order to avoid auth/payment regressions:
+
+1. **Database migrations**
+2. **Supabase Edge Functions**
+3. **Frontend (Vercel)**
+
+### Canonical migration workflow
+
+Use timestamped migrations going forward (do not hand-number new files):
+
+```bash
+supabase migration new your_change_name
+```
+
+Then:
+
+1. Add SQL to the generated migration file.
+2. Apply to linked project:
+   ```bash
+   supabase db push
+   ```
+3. Verify migration history alignment:
+   ```bash
+   supabase migration list --linked
+   ```
+4. Commit the migration file with the code change that depends on it.
+
+### Release checks before deploy
+
+Run:
+
+```bash
+npm run verify:release
+```
+
+This validates:
+- Required production env vars
+- i18n key coverage parity across `en/es/ko/ja`
+- Edge function unauthorized contract for `create-checkout`
+
 ## Step 7: Test Everything
 
 1. **Auth Flow**: Try signing in with each OAuth provider
@@ -207,7 +249,6 @@ After Vercel deploys, update Supabase:
 - [ ] Test a real payment
 - [ ] Set up custom domain (optional)
 - [ ] Configure Resend email domain verification
-
 
 
 

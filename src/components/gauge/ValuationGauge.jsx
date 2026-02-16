@@ -8,6 +8,7 @@ const DIAL_SWEEP_ANGLE = 270
 const DIAL_END_ANGLE = DIAL_START_ANGLE + DIAL_SWEEP_ANGLE
 const SEGMENT_GAP_DEG = 2.2
 const MULTIPLE_CACHE_KEY = 'tsla:last_revenue_multiple'
+const MULTIPLE_CACHE_AT_KEY = 'tsla:last_revenue_multiple_at'
 
 const VALUE_MIN = GAUGE_CONFIG.minMultiple
 const VALUE_MAX = GAUGE_CONFIG.maxMultiple
@@ -38,7 +39,7 @@ function describeArc(cx, cy, radius, startAngle, endAngle) {
   return `M ${start.x} ${start.y} A ${radius} ${radius} 0 ${largeArcFlag} 1 ${end.x} ${end.y}`
 }
 
-export default function ValuationGauge({ multiple, locked, tier }) {
+export default function ValuationGauge({ multiple, locked, tier, cachedAt = null }) {
   const { t } = useLanguage()
   const cx = 250
   const cy = 190
@@ -52,21 +53,33 @@ export default function ValuationGauge({ multiple, locked, tier }) {
     const parsed = Number(raw)
     return Number.isFinite(parsed) && parsed > 0 ? parsed : null
   })
+  const [cachedMultipleAt, setCachedMultipleAt] = useState(() => {
+    if (typeof window === 'undefined') return null
+    const raw = window.localStorage.getItem(MULTIPLE_CACHE_AT_KEY)
+    const parsed = Number(raw)
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+  })
 
   useEffect(() => {
     if (typeof multiple !== 'number' || !Number.isFinite(multiple) || multiple <= 0) return
     setCachedMultiple(multiple)
+    const timestamp = Number.isFinite(cachedAt) && cachedAt > 0 ? cachedAt : Date.now()
+    setCachedMultipleAt(timestamp)
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(MULTIPLE_CACHE_KEY, String(multiple))
+      window.localStorage.setItem(MULTIPLE_CACHE_AT_KEY, String(timestamp))
     }
-  }, [multiple])
+  }, [multiple, cachedAt])
 
   const liveMultiple = typeof multiple === 'number' && Number.isFinite(multiple) && multiple > 0 ? multiple : null
   const effectiveMultiple = liveMultiple ?? cachedMultiple
+  const effectiveCachedAt = liveMultiple
+    ? null
+    : (Number.isFinite(cachedAt) && cachedAt > 0 ? cachedAt : cachedMultipleAt)
   const effectiveTier = tier ?? (effectiveMultiple ? getValuationTier(effectiveMultiple) : null)
   const tierKey = effectiveTier?.id
-  const localizedTierLabel = tierKey ? t(`tiers.${tierKey}.label`) : t('gauge.priceFeed')
-  const localizedSignal = tierKey ? t(`tiers.${tierKey}.signal`) : 'WAIT'
+  const localizedTierLabel = tierKey ? t(`tiers.${tierKey}.label`) : t('gauge.dataUnavailableTitle')
+  const localizedSignal = tierKey ? t(`tiers.${tierKey}.signal`) : t('gauge.noSignal')
   const localizedTierDescription = tierKey ? t(`tiers.${tierKey}.description`) : null
 
   const segments = useMemo(
@@ -103,13 +116,21 @@ export default function ValuationGauge({ multiple, locked, tier }) {
   const needleLength = radius - 18
   const needleStartRotation = DIAL_START_ANGLE
   const needleTargetRotation = needleAngle
-  const currentColor = effectiveTier?.signalColor || effectiveTier?.color || '#8fa0b7'
+  const currentColor = effectiveTier?.signalColor || effectiveTier?.color || 'rgba(214, 220, 232, 0.9)'
+  const cachedTimestampLabel = effectiveCachedAt
+    ? new Date(effectiveCachedAt).toLocaleString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    })
+    : null
 
   const actionText = localizedSignal
   const tierLabel = localizedTierLabel
   const statusText = effectiveMultiple
-    ? `${effectiveMultiple.toFixed(1)}x P/S${liveMultiple ? '' : ` (${t('gauge.cachedTag')})`}`
-    : t('gauge.waitingForLiveData')
+    ? `${effectiveMultiple.toFixed(1)}x P/S${liveMultiple ? '' : ` (${t('gauge.cachedTag')}${cachedTimestampLabel ? ` • ${t('gauge.cachedAt', { time: cachedTimestampLabel })}` : ''})`}`
+    : t('gauge.dataUnavailable')
 
   return (
     <div className={`gauge-wrapper ${locked ? 'gauge-locked' : ''}`}>
@@ -187,7 +208,7 @@ export default function ValuationGauge({ multiple, locked, tier }) {
               fontFamily="'JetBrains Mono', monospace"
               letterSpacing="0.04em"
             >
-              {statusText.toUpperCase()}
+              {statusText}
             </text>
 
             {effectiveMultiple && (
@@ -246,7 +267,7 @@ export default function ValuationGauge({ multiple, locked, tier }) {
                 fontFamily="'JetBrains Mono', monospace"
                 letterSpacing="0.04em"
               >
-                {localizedTierDescription.toUpperCase()}
+                {localizedTierDescription}
               </text>
             )}
           </svg>

@@ -1,4 +1,5 @@
 import { useSubscription } from '../../hooks/useSubscription'
+import { useLanguage } from '../../i18n/LanguageContext'
 
 export function SubscriptionStatus() {
   const { 
@@ -8,10 +9,18 @@ export function SubscriptionStatus() {
     manageSubscription, 
     loading 
   } = useSubscription()
+  const { t, lang } = useLanguage()
+
+  const localeByLanguage = {
+    en: 'en-US',
+    es: 'es-ES',
+    ko: 'ko-KR',
+    ja: 'ja-JP',
+  }
 
   const formatDate = (dateString) => {
-    if (!dateString) return 'N/A'
-    return new Date(dateString).toLocaleDateString('en-US', {
+    if (!dateString) return t('subscription.na')
+    return new Date(dateString).toLocaleDateString(localeByLanguage[lang] || 'en-US', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
@@ -29,17 +38,17 @@ export function SubscriptionStatus() {
 
   const getStatusLabel = () => {
     switch (subscriptionStatus) {
-      case 'active': return 'Active'
-      case 'canceled': return 'Canceled'
-      case 'past_due': return 'Past Due'
-      default: return 'Free'
+      case 'active': return t('subscription.statusActive')
+      case 'canceled': return t('subscription.statusCanceled')
+      case 'past_due': return t('subscription.statusPastDue')
+      default: return t('subscription.statusFree')
     }
   }
 
   return (
     <div className="subscription-status">
       <div className="subscription-header">
-        <h3>Subscription</h3>
+        <h3>{t('subscription.title')}</h3>
         <span 
           className="subscription-badge"
           style={{ '--badge-color': getStatusColor() }}
@@ -50,14 +59,16 @@ export function SubscriptionStatus() {
 
       <div className="subscription-details">
         <div className="subscription-plan">
-          <span className="label">Plan</span>
-          <span className="value">{isPro ? 'Pro' : 'Free'}</span>
+          <span className="label">{t('subscription.planLabel')}</span>
+          <span className="value">{isPro ? t('subscription.planPro') : t('subscription.planFree')}</span>
         </div>
         
         {isPro && subscriptionEndDate && (
           <div className="subscription-renewal">
             <span className="label">
-              {subscriptionStatus === 'canceled' ? 'Access until' : 'Renews on'}
+              {subscriptionStatus === 'canceled'
+                ? t('subscription.accessUntil')
+                : t('subscription.renewsOn')}
             </span>
             <span className="value">{formatDate(subscriptionEndDate)}</span>
           </div>
@@ -70,13 +81,12 @@ export function SubscriptionStatus() {
           onClick={manageSubscription}
           disabled={loading}
         >
-          {loading ? 'Loading...' : 'Manage Subscription'}
+          {loading ? t('subscription.loading') : t('subscription.manage')}
         </button>
       )}
     </div>
   )
 }
-
 
 
 

@@ -11,15 +11,24 @@ export const supabase = supabaseUrl && supabaseAnonKey
   ? createClient(supabaseUrl, supabaseAnonKey)
   : null
 
+function sanitizeNextPath(nextPath, fallback = '/dashboard') {
+  if (typeof nextPath !== 'string' || nextPath.length === 0) return fallback
+  if (!nextPath.startsWith('/') || nextPath.startsWith('//')) return fallback
+  return nextPath
+}
+
 // Auth helper functions
-export async function signInWithProvider(provider) {
+export async function signInWithProvider(provider, { nextPath } = {}) {
   if (!supabase) {
     throw new Error('Supabase not configured. Please check your environment variables.')
   }
   
-  // Build the redirect URL - ensure it's the production URL when deployed
+  // Build callback URL with destination preservation for post-auth routing.
   const origin = window.location.origin
-  const redirectTo = `${origin}/auth/callback`
+  const destination = sanitizeNextPath(nextPath, '/dashboard')
+  const redirectUrl = new URL(`${origin}/auth/callback`)
+  redirectUrl.searchParams.set('next', destination)
+  const redirectTo = redirectUrl.toString()
   
   console.log(`Initiating ${provider} OAuth`)
   console.log('Origin:', origin)
@@ -177,5 +186,4 @@ export async function upsertAlertSettings(userId, settings) {
   if (error) throw error
   return data
 }
-
 

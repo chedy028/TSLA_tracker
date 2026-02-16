@@ -33,6 +33,7 @@ function Dashboard() {
     loading,
     error,
     refetch,
+    quoteCachedAt,
   } = useStockData()
   const { financials, loading: financialsLoading, refetch: refetchFinancials } = useCompanyFinancials()
 
@@ -212,6 +213,7 @@ function Dashboard() {
             multiple={revenueMultiple}
             locked={!isPro}
             tier={tier}
+            cachedAt={quoteCachedAt}
           />
         </div>
 

@@ -7,6 +7,53 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 let stripePromise = null
 
+export const PAYMENT_ERROR_CODES = {
+  AUTH_REQUIRED: 'AUTH_REQUIRED',
+  PERMISSION_DENIED: 'PERMISSION_DENIED',
+  FUNCTION_UNAVAILABLE: 'FUNCTION_UNAVAILABLE',
+  CHECKOUT_FAILED: 'CHECKOUT_FAILED',
+  PORTAL_FAILED: 'PORTAL_FAILED',
+  CONFIG_ERROR: 'CONFIG_ERROR',
+  INVALID_RESPONSE: 'INVALID_RESPONSE',
+}
+
+class PaymentError extends Error {
+  constructor({
+    code,
+    messageKey,
+    message,
+    status,
+    details,
+  }) {
+    super(message)
+    this.name = 'PaymentError'
+    this.code = code
+    this.messageKey = messageKey
+    this.status = status || null
+    this.details = details || null
+  }
+}
+
+export function isPaymentError(error) {
+  return error instanceof PaymentError
+}
+
+function createPaymentError({
+  code,
+  messageKey,
+  message,
+  status,
+  details,
+}) {
+  return new PaymentError({
+    code,
+    messageKey,
+    message,
+    status,
+    details,
+  })
+}
+
 export function getStripe() {
   if (!stripePromise && stripePublicKey) {
     stripePromise = loadStripe(stripePublicKey)
@@ -41,10 +88,17 @@ export const PRICING = {
   },
 }
 
-function parseFunctionError(status, bodyText, fallbackMessage) {
+function parseFunctionError({
+  status,
+  bodyText,
+  fallbackCode,
+  fallbackMessageKey,
+  fallbackMessage,
+}) {
   let errorMessage = fallbackMessage
+  let payload = null
   try {
-    const payload = JSON.parse(bodyText)
+    payload = JSON.parse(bodyText)
     errorMessage = payload.error || payload.message || fallbackMessage
   } catch {
     if (bodyText) {
@@ -53,34 +107,70 @@ function parseFunctionError(status, bodyText, fallbackMessage) {
   }
 
   if (status === 401) {
-    return 'Session expired. Please sign in again and retry checkout.'
+    return createPaymentError({
+      code: PAYMENT_ERROR_CODES.AUTH_REQUIRED,
+      messageKey: 'paymentErrors.authRequired',
+      message: errorMessage,
+      status,
+      details: payload,
+    })
   }
   if (status === 403) {
-    return 'Permission denied. Please sign out and sign in again.'
+    return createPaymentError({
+      code: PAYMENT_ERROR_CODES.PERMISSION_DENIED,
+      messageKey: 'paymentErrors.permissionDenied',
+      message: errorMessage,
+      status,
+      details: payload,
+    })
   }
   if (status === 404) {
-    return 'Checkout service is unavailable. Edge function may not be deployed.'
+    return createPaymentError({
+      code: PAYMENT_ERROR_CODES.FUNCTION_UNAVAILABLE,
+      messageKey: 'paymentErrors.functionUnavailable',
+      message: errorMessage,
+      status,
+      details: payload,
+    })
   }
 
-  return errorMessage
+  return createPaymentError({
+    code: fallbackCode,
+    messageKey: fallbackMessageKey,
+    message: errorMessage,
+    status,
+    details: payload,
+  })
 }
 
 async function getAuthToken({ forceRefresh = false } = {}) {
   if (!supabase) {
-    throw new Error('Supabase client not configured')
+    throw createPaymentError({
+      code: PAYMENT_ERROR_CODES.CONFIG_ERROR,
+      messageKey: 'paymentErrors.configError',
+      message: 'Supabase client not configured',
+    })
   }
 
   if (forceRefresh) {
     const { data, error } = await supabase.auth.refreshSession()
     if (error || !data?.session?.access_token) {
-      throw new Error('Session expired. Please sign in again.')
+      throw createPaymentError({
+        code: PAYMENT_ERROR_CODES.AUTH_REQUIRED,
+        messageKey: 'paymentErrors.authRequired',
+        message: 'Session expired. Please sign in again.',
+      })
     }
     return data.session.access_token
   }
 
   const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
   if (sessionError) {
-    throw new Error('Unable to read auth session. Please sign in again.')
+    throw createPaymentError({
+      code: PAYMENT_ERROR_CODES.AUTH_REQUIRED,
+      messageKey: 'paymentErrors.authRequired',
+      message: 'Unable to read auth session. Please sign in again.',
+    })
   }
 
   if (sessionData?.session?.access_token) {
@@ -89,15 +179,31 @@ async function getAuthToken({ forceRefresh = false } = {}) {
 
   const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession()
   if (refreshError || !refreshed?.session?.access_token) {
-    throw new Error('Please sign in to continue.')
+    throw createPaymentError({
+      code: PAYMENT_ERROR_CODES.AUTH_REQUIRED,
+      messageKey: 'paymentErrors.authRequired',
+      message: 'Please sign in to continue.',
+    })
   }
 
   return refreshed.session.access_token
 }
 
-async function invokeProtectedFunction(path, payload, fallbackMessage) {
+async function invokeProtectedFunction(
+  path,
+  payload,
+  {
+    fallbackCode,
+    fallbackMessageKey,
+    fallbackMessage,
+  }
+) {
   if (!supabaseUrl) {
-    throw new Error('Supabase URL not configured')
+    throw createPaymentError({
+      code: PAYMENT_ERROR_CODES.CONFIG_ERROR,
+      messageKey: 'paymentErrors.configError',
+      message: 'Supabase URL not configured',
+    })
   }
 
   const invoke = async (token) => {
@@ -122,20 +228,41 @@ async function invokeProtectedFunction(path, payload, fallbackMessage) {
 
   // Retry once with an explicit refresh if token is stale.
   if (response.status === 401) {
-    accessToken = await getAuthToken({ forceRefresh: true })
-    response = await invoke(accessToken)
+    try {
+      accessToken = await getAuthToken({ forceRefresh: true })
+      response = await invoke(accessToken)
+    } catch (refreshError) {
+      if (isPaymentError(refreshError) && refreshError.code === PAYMENT_ERROR_CODES.AUTH_REQUIRED) {
+        throw refreshError
+      }
+      throw createPaymentError({
+        code: PAYMENT_ERROR_CODES.AUTH_REQUIRED,
+        messageKey: 'paymentErrors.authRequired',
+        message: 'Session expired. Please sign in again and retry checkout.',
+      })
+    }
   }
 
   const responseText = await response.text()
 
   if (!response.ok) {
-    throw new Error(parseFunctionError(response.status, responseText, fallbackMessage))
+    throw parseFunctionError({
+      status: response.status,
+      bodyText: responseText,
+      fallbackCode,
+      fallbackMessageKey,
+      fallbackMessage,
+    })
   }
 
   try {
     return JSON.parse(responseText)
   } catch {
-    throw new Error('Invalid function response format')
+    throw createPaymentError({
+      code: PAYMENT_ERROR_CODES.INVALID_RESPONSE,
+      messageKey: 'paymentErrors.invalidResponse',
+      message: 'Invalid function response format',
+    })
   }
 }
 
@@ -145,7 +272,11 @@ export async function createCheckoutSession(userId, userEmail) {
   
   // Validate configuration
   if (!priceId) {
-    throw new Error('Stripe Price ID not configured (VITE_STRIPE_PRICE_ID)')
+    throw createPaymentError({
+      code: PAYMENT_ERROR_CODES.CONFIG_ERROR,
+      messageKey: 'paymentErrors.priceIdMissing',
+      message: 'Stripe Price ID not configured (VITE_STRIPE_PRICE_ID)',
+    })
   }
 
   console.log('Creating checkout session...', { userId, userEmail, priceId })
@@ -160,11 +291,19 @@ export async function createCheckoutSession(userId, userEmail) {
       successUrl: `${window.location.origin}/dashboard?success=true`,
       cancelUrl: `${window.location.origin}/pricing?canceled=true`,
     },
-    'Failed to create checkout session'
+    {
+      fallbackCode: PAYMENT_ERROR_CODES.CHECKOUT_FAILED,
+      fallbackMessageKey: 'paymentErrors.checkoutFailed',
+      fallbackMessage: 'Failed to create checkout session',
+    }
   )
 
   if (!data?.sessionId) {
-    throw new Error('Checkout session was created without a session id')
+    throw createPaymentError({
+      code: PAYMENT_ERROR_CODES.INVALID_RESPONSE,
+      messageKey: 'paymentErrors.invalidResponse',
+      message: 'Checkout session was created without a session id',
+    })
   }
 
   return data.sessionId
@@ -174,14 +313,23 @@ export async function createCheckoutSession(userId, userEmail) {
 export async function redirectToCheckout(userId, userEmail) {
   const stripe = await getStripe()
   if (!stripe) {
-    throw new Error('Stripe not configured')
+    throw createPaymentError({
+      code: PAYMENT_ERROR_CODES.CONFIG_ERROR,
+      messageKey: 'paymentErrors.stripeUnavailable',
+      message: 'Stripe not configured',
+    })
   }
   
   const sessionId = await createCheckoutSession(userId, userEmail)
   
   const { error } = await stripe.redirectToCheckout({ sessionId })
   if (error) {
-    throw error
+    throw createPaymentError({
+      code: PAYMENT_ERROR_CODES.CHECKOUT_FAILED,
+      messageKey: 'paymentErrors.checkoutRedirectFailed',
+      message: error.message || 'Failed to redirect to checkout',
+      details: error,
+    })
   }
 }
 
@@ -193,13 +341,20 @@ export async function createPortalSession(customerId) {
       customerId,
       returnUrl: `${window.location.origin}/dashboard`,
     },
-    'Failed to create billing portal session'
+    {
+      fallbackCode: PAYMENT_ERROR_CODES.PORTAL_FAILED,
+      fallbackMessageKey: 'paymentErrors.portalFailed',
+      fallbackMessage: 'Failed to create billing portal session',
+    }
   )
 
   if (!data?.url) {
-    throw new Error('Billing portal URL was not returned')
+    throw createPaymentError({
+      code: PAYMENT_ERROR_CODES.INVALID_RESPONSE,
+      messageKey: 'paymentErrors.invalidResponse',
+      message: 'Billing portal URL was not returned',
+    })
   }
 
   return data.url
 }
-

@@ -2,15 +2,25 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { SocialButtons } from './SocialButtons'
 import { useAuth } from '../../hooks/useAuth'
+import { useLanguage } from '../../i18n/LanguageContext'
+
+function sanitizeNextPath(nextPath, fallback = '/dashboard') {
+  if (typeof nextPath !== 'string' || nextPath.length === 0) return fallback
+  if (!nextPath.startsWith('/') || nextPath.startsWith('//')) return fallback
+  return nextPath
+}
 
 export function LoginPage() {
   const [error, setError] = useState(null)
   const { user, loading } = useAuth()
+  const { t } = useLanguage()
   const navigate = useNavigate()
   const location = useLocation()
 
-  // Get the redirect destination from state or default to dashboard
-  const from = location.state?.from?.pathname || '/dashboard'
+  const params = new URLSearchParams(location.search)
+  const requestedNext = sanitizeNextPath(params.get('next'), '')
+  const fromState = sanitizeNextPath(location.state?.from?.pathname || '', '/dashboard')
+  const from = requestedNext || fromState
 
   useEffect(() => {
     // If already logged in, redirect
@@ -19,12 +29,18 @@ export function LoginPage() {
     }
   }, [user, loading, navigate, from])
 
+  useEffect(() => {
+    if (location.state?.reason === 'auth_required') {
+      setError(t('paymentErrors.authRequired'))
+    }
+  }, [location.state, t])
+
   if (loading) {
     return (
       <div className="auth-page">
         <div className="auth-loading">
           <div className="loading-spinner" />
-          <p>Loading...</p>
+          <p>{t('auth.loading')}</p>
         </div>
       </div>
     )
@@ -37,8 +53,8 @@ export function LoginPage() {
           <div className="auth-logo">
             <span className="logo-icon">T</span>
           </div>
-          <h1>Welcome to TSLA Tracker</h1>
-          <p>Sign in to access live stock tracking, AI insights, and email alerts</p>
+          <h1>{t('auth.title')}</h1>
+          <p>{t('auth.subtitle')}</p>
         </div>
 
         {error && (
@@ -49,53 +65,54 @@ export function LoginPage() {
             <div className="auth-error-content">
               <span>{error}</span>
               {error.includes('date') || error.includes('security') ? (
-                <small>Check your computer's date and time settings</small>
+                <small>{t('auth.dateTimeHint')}</small>
               ) : null}
             </div>
           </div>
         )}
 
-        <SocialButtons onError={setError} />
+        <SocialButtons onError={setError} nextPath={from} />
 
         <div className="auth-divider">
-          <span>Secure authentication powered by Supabase</span>
+          <span>{t('auth.secureAuth')}</span>
         </div>
 
         <div className="auth-features">
-          <h3>Pro membership includes:</h3>
+          <h3>{t('auth.proIncludesTitle')}</h3>
           <ul>
             <li>
               <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
                 <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
               </svg>
-              Real-time TSLA price tracking
+              {t('auth.featureOne')}
             </li>
             <li>
               <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
                 <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
               </svg>
-              AI-powered valuation analysis
+              {t('auth.featureTwo')}
             </li>
             <li>
               <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
                 <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
               </svg>
-              Price and valuation email alerts
+              {t('auth.featureThree')}
             </li>
             <li>
               <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
                 <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
               </svg>
-              AI assistant for guidance
+              {t('auth.featureFour')}
             </li>
           </ul>
         </div>
 
         <div className="auth-footer">
           <p>
-            By signing in, you agree to our{' '}
-            <a href="/terms">Terms of Service</a> and{' '}
-            <a href="/privacy">Privacy Policy</a>
+            {t('auth.termsPrefix')}{' '}
+            <a href="/terms">{t('auth.termsLink')}</a>{' '}
+            {t('auth.termsConnector')}{' '}
+            <a href="/privacy">{t('auth.privacyLink')}</a>
           </p>
         </div>
       </div>
